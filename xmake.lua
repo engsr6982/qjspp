@@ -1,6 +1,4 @@
 add_rules("mode.debug", "mode.release")
-set_project("qjspp")
-set_version("0.1.0")
 
 if has_config("test") then
     add_requires("catch2 v3.8.1")
@@ -10,8 +8,6 @@ if is_plat("windows") then
     if not has_config("vs_runtime") then
         set_runtimes("MD")
     end
-elseif is_plat("linux") then 
-    set_toolchains("clang")
 end
 
 option("test")
@@ -33,7 +29,6 @@ option_end()
 
 
 target("qjspp")
-    set_kind("static")
     add_files("src/**.cc")
     add_includedirs("src", "include")
     add_headerfiles("include/(qjspp/**.hpp)")
@@ -47,41 +42,24 @@ target("qjspp")
         add_syslinks("dl", "pthread")
     end
 
+    if is_mode("debug") then
+        add_defines("QJSPP_DEBUG")
+    end
+
     if has_config("qjs_include") then
         add_includedirs(get_config("qjs_include"))
     end
 
-    if is_mode("debug") then
-        add_defines("QJSPP_DEBUG")
-    end
-target_end()
-
-
-target("qjspp_test")
-    add_deps("qjspp")
-    set_kind("binary")
-    set_symbols("debug")
-    set_languages("cxx20")
-    add_includedirs("include") -- add qjspp include dir
-    add_files("tests/**.cc")
-    set_symbols("debug")
-
-    if is_plat("linux") then
-        add_packages("catch2", {links = {"Catch2", "Catch2Main"}})
-    else
+    if not has_config("test") then 
+        set_kind("static")
+    else 
+        set_kind("binary")
+        add_files("tests/**.cc")
         add_packages("catch2")
+        add_links(get_config("qjs_lib"))
+        print("DEBUG: qjs_include: "..get_config("qjs_include"))
+        print("DEBUG: qjs_lib: "..get_config("qjs_lib"))
     end
-
-    if is_plat("windows") then 
-        add_cxflags("/utf-8", "/W4", "/sdl")
-    elseif is_plat("linux") then
-        add_cxflags("-fPIC", "-stdlib=libc++", {force = true})
-        add_ldflags("-stdlib=libc++", {force = true})
-        add_syslinks("dl", "pthread", "c++", "m")
-    end
-
-    add_includedirs(get_config("qjs_include"))
-    add_links(get_config("qjs_lib"))
 
     after_build(function (target)
         local binDir = os.projectdir() .. "/bin"
@@ -91,3 +69,4 @@ target("qjspp_test")
         local test = target:targetfile()
         os.cp(test, binDir)
     end)
+target_end()
