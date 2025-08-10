@@ -55,7 +55,7 @@ jobs:
           cmake --build . --config Release --target qjs
 
       - run: |
-          xmake f -m release -p windows -a x64 --test=y --qjs_include="quickjs-ng" --qjs_lib="quickjs-ng/build/Release/qjs.lib"
+          xmake f -v -y -m release -p windows -a x64 --test=y --qjs_include="quickjs-ng" --qjs_lib="quickjs-ng/build/Release/qjs.lib"
 
       - run: |
           xmake -v -y
