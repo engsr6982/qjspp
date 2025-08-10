@@ -1,0 +1,65 @@
+on:
+  push:
+    paths:
+      - "xmake.lua"
+      - "src/**/*"
+      - "tests/**/*"
+      - "include/**/*"
+      - ".github/workflows/test.yml"
+  pull_request:
+    paths:
+      - "xmake.lua"
+      - "src/**/*"
+      - "tests/**/*"
+      - "include/**/*"
+      - ".github/workflows/test.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: "Uint Test"
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: xmake-io/github-action-setup-xmake@v1
+        # with:
+        #   xmake-version: branch@master
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/AppData/Local/.xmake
+          key: xmake-${{ hashFiles('xmake.lua') }}
+          restore-keys: |
+            xmake-
+
+      - run: |
+          xmake repo -u
+
+      - name: Checkout quickjs-ng
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: engsr6982/quickjs-ng
+          path: quickjs-ng
+
+      - name: Build quickjs-ng static lib
+        run: |
+          cd quickjs-ng
+          mkdir build
+          cd build
+          cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DQJS_BUILD_LIBC=ON
+          cmake --build . --config Release --target qjs
+
+      - run: |
+          xmake f -m release -p windows -a x64 --test=y --qjs_include="quickjs-ng" --qjs_lib="quickjs-ng/build/Release/qjs.lib"
+
+      - run: |
+          xmake -v -y
+
+      - name: Run tests
+        run: |
+          cd bin && ./qjspp.exe
