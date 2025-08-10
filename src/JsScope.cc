@@ -12,6 +12,7 @@ JsScope::JsScope(JsEngine* engine) : engine_(engine), prev_(gCurrentScope_) {
         this->prev_->engine_->mutex_.unlock();
     }
     this->engine_->mutex_.lock();
+    gCurrentScope_ = this;
     JS_UpdateStackTop(this->engine_->runtime_);
 }
 JsScope::~JsScope() {
