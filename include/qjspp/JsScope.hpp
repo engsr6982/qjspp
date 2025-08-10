@@ -28,15 +28,15 @@ public:
 
 private:
     // 作用域链
-    JsEngine const* engine_{nullptr};
-    JsScope*        prev_{nullptr};
+    JsEngine* engine_{nullptr};
+    JsScope*  prev_{nullptr};
 
     static thread_local JsScope* gCurrentScope_;
     friend class ExitJsScope;
 };
 
 class ExitJsScope final {
-    JsEngine const* engine_{nullptr};
+    JsEngine* engine_{nullptr};
 
 public:
     explicit ExitJsScope();

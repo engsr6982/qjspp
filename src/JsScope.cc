@@ -16,6 +16,7 @@ JsScope::JsScope(JsEngine* engine) : engine_(engine), prev_(gCurrentScope_) {
     JS_UpdateStackTop(this->engine_->runtime_);
 }
 JsScope::~JsScope() {
+    this->engine_->pumpJobs();
     this->engine_->mutex_.unlock();
     if (prev_) {
         this->prev_->engine_->mutex_.lock();
@@ -25,7 +26,7 @@ JsScope::~JsScope() {
 
 JsEngine* JsScope::currentEngine() {
     if (gCurrentScope_) {
-        return const_cast<JsEngine*>(gCurrentScope_->engine_);
+        return gCurrentScope_->engine_;
     }
     return nullptr;
 }
