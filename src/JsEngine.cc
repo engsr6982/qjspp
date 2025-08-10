@@ -19,7 +19,7 @@ static std::once_flag kGlobalQjsClass;
 
 
 JsEngine::JsEngine() : runtime_(JS_NewRuntime()) {
-    if (context_) {
+    if (runtime_) {
         context_ = JS_NewContext(runtime_);
     }
 
