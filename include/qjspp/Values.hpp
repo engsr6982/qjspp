@@ -220,9 +220,9 @@ class Function final {
 public:
     explicit Function(FunctionCallback callback);
 
-    Value call(Value const& thiz, std::vector<Value> const& args);
+    Value call(Value const& thiz, std::vector<Value> const& args) const;
 
-    Value call();
+    Value call() const;
 };
 
 #undef SPECIALIZE_ALL

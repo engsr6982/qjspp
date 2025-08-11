@@ -364,7 +364,7 @@ Function::Function(FunctionCallback callback) {
     val_ = fn;
 }
 
-Value Function::call(Value const& thiz, std::vector<Value> const& args) {
+Value Function::call(Value const& thiz, std::vector<Value> const& args) const {
     auto& engine = JsScope::currentEngineChecked();
 
     static_assert(sizeof(Value) == sizeof(JSValue), "Value and JSValue must have the same size");
@@ -378,7 +378,7 @@ Value Function::call(Value const& thiz, std::vector<Value> const& args) {
     return Value::wrap<Value>(ret);
 }
 
-Value Function::call() { return call(Value{}, {}); }
+Value Function::call() const { return call(Value{}, {}); }
 
 #undef IMPL_SPECIALIZE_RAII
 #undef IMPL_SPECIALIZE_COPY_AND_MOVE
