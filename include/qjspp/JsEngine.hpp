@@ -3,6 +3,7 @@
 #include "qjspp/Concepts.hpp"
 #include "qjspp/Types.hpp"
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -71,9 +72,12 @@ private:
 
     std::shared_ptr<void> userData_{nullptr};
 
-    mutable std::recursive_mutex mutex_; // for thread safety
+    mutable std::recursive_mutex mutex_;           // for thread safety
+    JSAtom                       lengthAtom_ = {}; // for Array
 
-    JSAtom lengthAtom_ = {};
+#ifdef QJSPP_DEBUG
+    std::atomic<uint64_t> valueConter_{0}; // 统计分配的 Value 数量(检查内存泄漏)
+#endif
 
     // TODO:
     // std::unordered_map<, std::pair<JSValue, JSValue>> nativeClassRegistry_;
@@ -89,6 +93,7 @@ private:
     friend class ExitJsScope;
     friend class Array; // 访问 lengthAtom_
     friend class Function;
+    friend class EventLoop;
 };
 
 

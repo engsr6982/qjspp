@@ -3,6 +3,7 @@
 #include "qjspp/JsScope.hpp"
 #include "qjspp/Values.hpp"
 #include "quickjs-libc.h"
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -73,6 +74,10 @@ JsEngine::~JsEngine() {
     userData_.reset();
 
     JS_FreeAtom(context_, lengthAtom_);
+
+#ifdef QJSPP_DEBUG
+    assert(valueConter_.load() == 0); // check all resources are released
+#endif
 
     // TODO: free all managed resources
 
