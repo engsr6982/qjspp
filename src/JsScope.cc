@@ -20,8 +20,8 @@ JsScope::~JsScope() {
     this->engine_->mutex_.unlock();
     if (prev_) {
         this->prev_->engine_->mutex_.lock();
-        gCurrentScope_ = this->prev_;
     }
+    gCurrentScope_ = this->prev_;
 }
 
 JsEngine* JsScope::currentEngine() {
