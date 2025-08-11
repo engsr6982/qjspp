@@ -220,6 +220,10 @@ class Function final {
 public:
     explicit Function(FunctionCallback callback);
 
+    // template <typename T>
+    //     requires(!IsFunctionCallback<T>)
+    // explicit Function(T&& func);
+
     Value call(Value const& thiz, std::vector<Value> const& args) const;
 
     Value call() const;
@@ -259,3 +263,5 @@ public:
 
 
 } // namespace qjspp
+
+#include "Values.inl"

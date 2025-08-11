@@ -1,8 +1,10 @@
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
+#include "qjspp/TaskQueue.hpp"
 #include "qjspp/Values.hpp"
 #include "quickjs-libc.h"
+#include "quickjs.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -10,6 +12,7 @@
 #include <mutex>
 #include <stdexcept>
 #include <vector>
+
 
 namespace qjspp {
 
@@ -19,7 +22,7 @@ JSClassID             JsEngine::kFunctionDataClassId = 0;
 static std::once_flag kGlobalQjsClass;
 
 
-JsEngine::JsEngine() : runtime_(JS_NewRuntime()) {
+JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQueue>()) {
     if (runtime_) {
         context_ = JS_NewContext(runtime_);
     }
@@ -72,12 +75,10 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()) {
 JsEngine::~JsEngine() {
     isDestroying_ = true;
     userData_.reset();
+    queue_.reset();
+
 
     JS_FreeAtom(context_, lengthAtom_);
-
-#ifdef QJSPP_DEBUG
-    assert(valueConter_.load() == 0); // check all resources are released
-#endif
 
     // TODO: free all managed resources
 
@@ -95,9 +96,16 @@ void JsEngine::pumpJobs() {
 
     bool no = false;
     if (JS_IsJobPending(runtime_) && tickScheduled_.compare_exchange_strong(no, true)) {
-        JsScope lock(this);
-        while (JS_ExecutePendingJob(runtime_, &context_) > 0) {}
-        tickScheduled_ = false;
+        queue_->postTask(
+            [](void* data) {
+                auto       engine = static_cast<JsEngine*>(data);
+                JSContext* ctx    = nullptr;
+                JsScope    lock(engine);
+                while (JS_ExecutePendingJob(engine->runtime_, &ctx) > 0) {}
+                engine->tickScheduled_ = false;
+            },
+            this
+        );
     }
 }
 
@@ -173,8 +181,9 @@ size_t JsEngine::getMemoryUsage() {
     return usage.memory_used_size;
 }
 
-void JsEngine::setData(std::shared_ptr<void> data) { userData_ = std::move(data); }
+TaskQueue* JsEngine::getTaskQueue() const { return queue_.get(); }
 
+void JsEngine::setData(std::shared_ptr<void> data) { userData_ = std::move(data); }
 
 void JsEngine::registerNativeClass(ClassDefine const& binding) {}
 

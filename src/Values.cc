@@ -83,8 +83,10 @@ Function Value::asFunction() const {
     TYPE::~TYPE() { JS_FreeValue(JsScope::currentContextChecked(), val_); }                                            \
     Value TYPE::asValue() const { return Value(val_); }                                                                \
     void  TYPE::reset() {                                                                                              \
-        JS_FreeValue(JsScope::currentContextChecked(), val_);                                                         \
-        val_ = JS_UNDEFINED;                                                                                          \
+        if (!JS_IsUndefined(val_)) {                                                                                  \
+            JS_FreeValue(JsScope::currentContextChecked(), val_);                                                     \
+            val_ = JS_UNDEFINED;                                                                                      \
+        }                                                                                                             \
     }                                                                                                                  \
     String TYPE::toString() const {                                                                                    \
         auto ret = JS_ToString(JsScope::currentContextChecked(), val_);                                                \
@@ -105,12 +107,14 @@ Function Value::asFunction() const {
         }                                                                                                              \
         return *this;                                                                                                  \
     }                                                                                                                  \
-    TYPE::TYPE(TYPE&& move) noexcept : val_(move.val_) { move.val_ = JS_NULL; }                                        \
+    TYPE::TYPE(TYPE&& move) noexcept : val_(move.val_) { move.val_ = JS_UNDEFINED; }                                   \
     TYPE& TYPE::operator=(TYPE&& move) noexcept {                                                                      \
         if (this != &move) {                                                                                           \
-            JS_FreeValue(JsScope::currentContextChecked(), val_);                                                      \
+            if (!JS_IsUndefined(val_)) {                                                                               \
+                JS_FreeValue(JsScope::currentContextChecked(), val_);                                                  \
+            }                                                                                                          \
             val_      = move.val_;                                                                                     \
-            move.val_ = JS_NULL;                                                                                       \
+            move.val_ = JS_UNDEFINED;                                                                                  \
         }                                                                                                              \
         return *this;                                                                                                  \
     }

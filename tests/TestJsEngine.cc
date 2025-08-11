@@ -1,4 +1,4 @@
-#include "TestEngine.hpp"
+#include "TestEngineFixture.hpp"
 #include "catch2/catch_test_macros.hpp"
 #include "catch2/matchers/catch_matchers.hpp"
 #include "catch2/matchers/catch_matchers_exception.hpp"
@@ -6,12 +6,11 @@
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
 #include "qjspp/Values.hpp"
+#include <algorithm>
 #include <filesystem>
-#include <iostream>
-#include <thread>
 
 
-TEST_CASE_METHOD(TestEngine, "Test JsEngine") {
+TEST_CASE_METHOD(TestEngineFixture, "Test JsEngine") {
     qjspp::JsScope scope(engine_);
 
     SECTION("Test JsEngine::eval") {
@@ -61,5 +60,31 @@ TEST_CASE_METHOD(TestEngine, "Test JsEngine") {
         engine_->globalThis().set(qjspp::String{"foo"}, test);
 
         REQUIRE_NOTHROW(engine_->loadByteCode(std::filesystem::current_path() / "tests" / "test.bin"));
+    }
+
+    SECTION("Test Proimse") {
+        bool done = false;
+        auto test = qjspp::Function{[&done](qjspp::Arguments const& args) -> qjspp::Value {
+            REQUIRE(args.length() == 1);
+            REQUIRE(args[0].isBoolean());
+            done = args[0].asBoolean().value();
+            return {};
+        }};
+        engine_->globalThis().set(qjspp::String{"setDone"}, test);
+
+        engine_->eval(R"(
+            new Promise((resolve, reject) => {
+                resolve();
+            }).then(() => {
+                new Promise((resolve, reject) => {
+                    resolve();
+                }).then(() => {
+                    setDone(true);
+                });
+            });
+        )");
+        engine_->getTaskQueue()->shutdown(true);
+        engine_->getTaskQueue()->loopAndWait();
+        REQUIRE(done == true);
     }
 }

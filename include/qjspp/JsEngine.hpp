@@ -1,13 +1,13 @@
 #pragma once
 #include "Global.hpp"
 #include "qjspp/Concepts.hpp"
+#include "qjspp/TaskQueue.hpp"
 #include "qjspp/Types.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <mutex>
-#include <unordered_map>
 
 
 namespace qjspp {
@@ -39,6 +39,8 @@ public:
 
     size_t getMemoryUsage();
 
+    TaskQueue* getTaskQueue() const;
+
     void setData(std::shared_ptr<void> data);
 
     template <typename T>
@@ -57,27 +59,18 @@ public:
     // getNativeInstanceOf
 
 private:
-    struct ManagedResource {
-        JsEngine*                  engine_;
-        void*                      resource_;
-        std::function<void(void*)> deleter_;
-    };
-
     ::JSRuntime* runtime_{nullptr};
     ::JSContext* context_{nullptr};
 
-    int              pauseGcCount_ = 0;
-    bool             isDestroying_{false};
-    std::atomic_bool tickScheduled_ = false;
+    int              pauseGcCount_ = 0;      // 暂停GC计数
+    bool             isDestroying_{false};   // 正在销毁
+    std::atomic_bool tickScheduled_ = false; // 是否已经调度了 tick (pumpJobs)
 
-    std::shared_ptr<void> userData_{nullptr};
+    std::shared_ptr<void>        userData_{nullptr}; // 用户数据
+    std::unique_ptr<TaskQueue>   queue_{nullptr};    // 任务队列
+    mutable std::recursive_mutex mutex_;             // 线程安全互斥量
+    JSAtom                       lengthAtom_ = {};   // for Array
 
-    mutable std::recursive_mutex mutex_;           // for thread safety
-    JSAtom                       lengthAtom_ = {}; // for Array
-
-#ifdef QJSPP_DEBUG
-    std::atomic<uint64_t> valueConter_{0}; // 统计分配的 Value 数量(检查内存泄漏)
-#endif
 
     // TODO:
     // std::unordered_map<, std::pair<JSValue, JSValue>> nativeClassRegistry_;

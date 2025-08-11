@@ -34,10 +34,16 @@ concept HasDefaultConstructor_v = requires {
 template <typename T>
 concept HasUserDeclaredDestructor_v = !std::is_trivially_destructible_v<T>;
 
+
+//  helper
 template <typename T>
 concept IsWrappedType = std::same_as<T, Value> || std::same_as<T, Undefined> || std::same_as<T, Null>
                      || std::same_as<T, Boolean> || std::same_as<T, Number> || std::same_as<T, String>
                      || std::same_as<T, Object> || std::same_as<T, Array> || std::same_as<T, Function>;
+
+
+template <typename T>
+concept IsFunctionCallback = std::is_invocable_r_v<Value, T, Arguments const&>;
 
 
 } // namespace qjspp
