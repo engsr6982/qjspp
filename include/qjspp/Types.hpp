@@ -11,6 +11,7 @@ namespace qjspp {
 
 
 class JsEngine;
+class JsException;
 
 enum class ValueType;
 

@@ -1,6 +1,8 @@
 #pragma once
 #include "qjspp/Concepts.hpp"
+#include "qjspp/JsException.hpp"
 #include "qjspp/Values.hpp"
+
 
 namespace qjspp {
 
