@@ -6,7 +6,12 @@ end
 
 if is_plat("windows") then
     if not has_config("vs_runtime") then
-        set_runtimes("MD")
+        -- set_runtimes("MD")
+        if is_mode("debug") then 
+            set_runtimes("MDd")
+        else 
+            set_runtimes("MD")
+        end 
     end
 end
 
