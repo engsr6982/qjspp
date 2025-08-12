@@ -99,6 +99,9 @@ public:
     [[nodiscard]] Array     asArray() const;
     [[nodiscard]] Function  asFunction() const;
 
+    template <IsWrappedType T>
+    [[nodiscard]] T as() const;
+
     /**
      * @note 危险的操作，解包后您需要自行管理引用计数
      */
