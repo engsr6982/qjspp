@@ -27,7 +27,12 @@ class Function;
 
 class Arguments;
 
+class ESModule;
+
+struct StaticDefine;
+struct InstanceDefine;
 class ClassDefine;
+
 
 using FunctionCallback = std::function<Value(Arguments const&)>;
 using GetterCallback   = std::function<Value()>;

@@ -1,13 +1,14 @@
 #pragma once
 #include "Global.hpp"
+#include "qjspp/Binding.hpp"
 #include "qjspp/Concepts.hpp"
 #include "qjspp/TaskQueue.hpp"
 #include "qjspp/Types.hpp"
 #include <cstddef>
-#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 
 
 namespace qjspp {
@@ -46,19 +47,41 @@ public:
     template <typename T>
     std::shared_ptr<T> getData() const;
 
-    void registerNativeClass(ClassDefine const& binding);
+    /**
+     * 注册一个原生类
+     * @param def 类定义
+     * @note 默认此函数会注册的 native 类挂载到 JavaScript 的全局对象(globalThis)上
+     */
+    void registerNativeClass(ClassDefine const& def);
 
-    // newInstance
+    /**
+     * 注册一个原生模块
+     * @param module 模块
+     * @note 注册为模块后，需要使用 import xx from "<name>" 导入
+     */
+    // void registerNativeModule(std::unique_ptr<ESModule> module);
+
+    Object newInstance(ClassDefine const& def, std::unique_ptr<WrappedResource>&& wrappedResource);
+
     // newInstanceOfRaw
     // newInstanceOfView
     // newInstanceOfView(owner)
     // newInstanceOfUnique
     // newInstanceOfShared
     // newInstanceOfWeak
-    // isInstanceOf
-    // getNativeInstanceOf
+
+    [[nodiscard]] bool isInstanceOf(Object const& thiz, ClassDefine const& def) const;
+
+    [[nodiscard]] void* getNativeInstanceOf(Object const& thiz, ClassDefine const& def) const;
 
 private:
+    using RawFunctionCallback = Value (*)(const Arguments&, void*, void*, bool constructCall);
+    Object   createJavaScriptClassOf(ClassDefine const& def);
+    Function createQuickJsCFunction(void* data1, void* data2, RawFunctionCallback cb);
+    Object   createConstuctor(ClassDefine const& def);
+    Object   createPrototype(ClassDefine const& def);
+    void     implStaticRegister(Object& ctor, StaticDefine const& def);
+
     ::JSRuntime* runtime_{nullptr};
     ::JSContext* context_{nullptr};
 
@@ -71,11 +94,8 @@ private:
     mutable std::recursive_mutex mutex_;             // 线程安全互斥量
     JSAtom                       lengthAtom_ = {};   // for Array
 
-
-    // TODO:
-    // std::unordered_map<, std::pair<JSValue, JSValue>> nativeClassRegistry_;
-    // std::unordered_map<std::string, ClassBinding const*>                      mRegisteredBindings;
-    // std::unordered_map<ClassBinding const*, v8::Global<v8::FunctionTemplate>> mJsClassConstructor;
+    std::unordered_map<ClassDefine const*, std::pair<JSValue, JSValue>> nativeClassData_; // {ctor, proto}
+    // std::unordered_map<std::string, ESModule*>                          registeredNativeModules_;
 
     // helpers
     static JSClassID kPointerClassId;
