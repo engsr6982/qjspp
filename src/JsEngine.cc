@@ -459,7 +459,7 @@ Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<WrappedReso
             "The native class " + def.name_ + " is not registered, so an instance cannot be constructed."
         };
     }
-    auto ctor = Value::wrap<Value>(JS_DupValue(context_, iter->second.first));
+    auto ctor = Value::wrap<Value>(iter->second.first);
     // TODO: impl
     throw JsException{"Not implemented."};
 }
@@ -467,7 +467,7 @@ Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<WrappedReso
 bool JsEngine::isInstanceOf(Object const& thiz, ClassDefine const& def) const {
     auto iter = nativeClassData_.find(&def);
     if (iter != nativeClassData_.end()) {
-        return thiz.instanceOf(Value::wrap<Value>(JS_DupValue(context_, iter->second.first)));
+        return thiz.instanceOf(Value::wrap<Value>(iter->second.first));
     }
     return false;
 }
