@@ -146,7 +146,16 @@ private:
     friend class ExitJsScope;
     friend class Array; // 访问 lengthAtom_
     friend class Function;
-    friend class EventLoop;
+    friend class PauseGc;
+};
+
+class PauseGc final {
+    JsEngine* engine_;
+    QJSPP_DISALLOW_COPY_AND_MOVE(PauseGc);
+
+public:
+    explicit PauseGc(JsEngine* engine);
+    ~PauseGc();
 };
 
 

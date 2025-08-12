@@ -20,6 +20,10 @@
 
 namespace qjspp {
 
+PauseGc::PauseGc(JsEngine* engine) : engine_(engine) { engine_->pauseGcCount_++; }
+PauseGc::~PauseGc() { engine_->pauseGcCount_--; }
+
+
 JSClassID             JsEngine::kPointerClassId      = 0;
 JSClassID             JsEngine::kInstanceClassId     = 0;
 JSClassID             JsEngine::kFunctionDataClassId = 0;
@@ -55,7 +59,7 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
 
     JSClassDef function{};
     function.class_name = "RawFunction";
-    function.finalizer  = [](JSRuntime* /*rt*/, JSValue val) {
+    function.finalizer  = [](JSRuntime*, JSValue val) {
         auto ptr = JS_GetOpaque(val, kFunctionDataClassId);
         if (ptr) {
             delete static_cast<FunctionCallback*>(ptr);
@@ -65,16 +69,13 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
 
     JSClassDef instance{};
     instance.class_name = "NativeInstance";
-    instance.finalizer  = [](JSRuntime* /*rt*/, JSValue val) {
+    instance.finalizer  = [](JSRuntime*, JSValue val) {
         auto ptr = JS_GetOpaque(val, kInstanceClassId);
         if (ptr) {
-            // TODO: fix this
-            // auto opaque = static_cast<InstanceClassOpaque*>(ptr);
-            // // reset the weak reference
-            // PauseGc pauseGc(opaque->scriptClassPointer->internalState_.engine);
-            // opaque->scriptClassPointer->internalState_.weakRef_ = JS_UNDEFINED;
-            // delete opaque->scriptClassPointer;
-            // delete opaque;
+            auto    wrapped = static_cast<WrappedResource*>(ptr);
+            PauseGc pauseGc(const_cast<JsEngine*>(wrapped->engine_));
+            wrapped->deleter_(wrapped->resource_);
+            delete wrapped;
         }
     };
     JS_NewClass(runtime_, kInstanceClassId, &instance);
