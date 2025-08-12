@@ -33,13 +33,11 @@ InstanceDefine::Method::Method(std::string name, InstanceMethodCallback callback
 InstanceDefine::InstanceDefine(
     InstanceConstructor   constructor,
     std::vector<Property> property,
-    std::vector<Method>   functions,
-    size_t                classSize
+    std::vector<Method>   functions
 )
 : constructor_(std::move(constructor)),
   property_(std::move(property)),
-  methods_(std::move(functions)),
-  classSize_(classSize) {}
+  methods_(std::move(functions)) {}
 
 WrappedResource::WrappedResource(void* resource, ResGetter getter, ResDeleter deleter)
 : resource_(resource),

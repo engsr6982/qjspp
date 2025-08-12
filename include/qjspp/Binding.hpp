@@ -1,8 +1,11 @@
 #pragma once
+#include "qjspp/Concepts.hpp"
 #include "qjspp/Global.hpp"
 #include "qjspp/Types.hpp"
 #include <memory>
+#include <stdexcept>
 #include <string>
+
 
 namespace qjspp {
 
@@ -85,13 +88,11 @@ struct InstanceDefine {
     InstanceConstructor const   constructor_;
     std::vector<Property> const property_;
     std::vector<Method> const   methods_;
-    size_t const                classSize_; // sizeof(C) for instance class
 
     explicit InstanceDefine(
         InstanceConstructor   constructor,
         std::vector<Property> property,
-        std::vector<Method>   functions,
-        size_t                classSize
+        std::vector<Method>   functions
     );
 };
 
@@ -137,11 +138,11 @@ public:
 
     // 由于采用 void* 提升了运行时的灵活性，但缺少了类型信息。
     // delete void* 是不安全的，所以需要此辅助方法，以生成合理的 deleter。
-    // 此回调仅在 JavaScript new 时调用，用于包装 JsInstanceConstructor 返回的实例 (T*)
+    // 此回调仅在 JavaScript new 时调用，用于包装 InstanceConstructor 返回的实例 (T*)
     // The use of void* enhances runtime flexibility but lacks type information.
     // Deleting a void* is unsafe, so this helper method is needed to generate a reasonable deleter.
     // This callback is only invoked when using JavaScript's `new` operator, and it is used to wrap the instance (T*)
-    //  returned by JsInstanceConstructor.
+    //  returned by InstanceConstructor.
     using TypedWrappedResourceFactory = std::unique_ptr<WrappedResource> (*)(void* instance);
     TypedWrappedResourceFactory const mJsNewInstanceWrapFactory{nullptr};
 
@@ -157,8 +158,195 @@ private:
     );
 
     template <typename>
-    friend struct ClassBindingBuilder;
+    friend struct ClassDefineBuilder;
 };
+
+
+template <typename Class>
+struct ClassDefineBuilder {
+private:
+    std::string                           mClassName;
+    std::vector<StaticDefine::Property>   mStaticProperty;
+    std::vector<StaticDefine::Function>   mStaticFunctions;
+    InstanceConstructor                   mInstanceConstructor;
+    std::vector<InstanceDefine::Property> mInstanceProperty;
+    std::vector<InstanceDefine::Method>   mInstanceFunctions;
+    ClassDefine const*                    mExtends         = nullptr;
+    bool const                            mIsInstanceClass = !std::is_void_v<Class>;
+
+public:
+    explicit ClassDefineBuilder(std::string className) : mClassName(std::move(className)) {}
+
+    // 注册静态方法（已包装的 JsFunctionCallback） / Register static function (already wrapped)
+    template <typename Fn>
+        requires(IsFunctionCallback<Fn>)
+    ClassDefineBuilder<Class>& function(std::string name, Fn&& fn) {
+        mStaticFunctions.emplace_back(std::move(name), std::forward<Fn>(fn));
+        return *this;
+    }
+
+    // 注册静态方法（自动包装） / Register static function (wrap C++ callable)
+    template <typename Fn>
+        requires(!IsFunctionCallback<Fn>)
+    ClassDefineBuilder<Class>& function(std::string name, Fn&& fn) {
+        mStaticFunctions.emplace_back(std::move(name), internal::bindStaticFunction(std::forward<Fn>(fn)));
+        return *this;
+    }
+
+    // 注册重载静态方法 / Register overloaded static functions
+    template <typename... Fn>
+        requires(sizeof...(Fn) > 1 && (!IsFunctionCallback<Fn> && ...))
+    ClassDefineBuilder<Class>& function(std::string name, Fn&&... fn) {
+        mStaticFunctions.emplace_back(std::move(name), internal::bindStaticOverloadedFunction(std::forward<Fn>(fn)...));
+        return *this;
+    }
+
+    // 注册静态属性（回调形式）/ Static property with raw callback
+    ClassDefineBuilder<Class>& property(std::string name, GetterCallback getter, SetterCallback setter = nullptr) {
+        mStaticProperty.emplace_back(std::move(name), std::move(getter), std::move(setter));
+        return *this;
+    }
+
+    // 静态属性（变量指针）/ Static property from global/static variable pointer
+    template <typename Ty>
+    ClassDefineBuilder<Class>& property(std::string name, Ty* member) {
+        auto gs = internal::bindStaticProperty<Ty>(member);
+        mStaticProperty.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
+        return *this;
+    }
+
+
+    /* Instance Interface */
+    /**
+     * 绑定默认构造函数。必须可被指定参数调用。
+     * Bind a default constructor. C must be constructible with specified arguments.
+     */
+    template <typename... Args>
+        requires(!std::is_void_v<Class>)
+    ClassDefineBuilder<Class>& constructor() {
+        static_assert(
+            !std::is_aggregate_v<Class> && std::is_constructible_v<Class, Args...>,
+            "Constructor must be callable with the specified arguments"
+        );
+        if (mInstanceConstructor) throw std::logic_error("Constructor has already been registered!");
+        mInstanceConstructor = internal::bindInstanceConstructor<Class, Args...>();
+        return *this;
+    }
+
+    /**
+     * 自定义构造逻辑。返回对象指针。
+     * Register a custom constructor. Should return a pointer to the instance.
+     */
+    template <typename T = Class>
+        requires(!std::is_void_v<T>)
+    ClassDefineBuilder<Class>& customConstructor(InstanceConstructor ctor) {
+        if (mInstanceConstructor) throw std::logic_error("Constructor has already been registered!");
+        mInstanceConstructor = std::move(ctor);
+        return *this;
+    }
+
+    /**
+     * 禁用构造函数，使 JavaScript 无法构造此类。
+     * Disable constructor from being called in JavaScript.
+     */
+    template <typename T = Class>
+        requires(!std::is_void_v<T>)
+    ClassDefineBuilder<Class>& disableConstructor() {
+        if (mInstanceConstructor) throw std::logic_error("Constructor has already been registered!");
+        mInstanceConstructor = [](Arguments const&) { return nullptr; };
+        return *this;
+    }
+
+    // 注册实例方法（已包装）/ Instance method with JsInstanceMethodCallback
+    template <typename Fn>
+        requires(!std::is_void_v<Class> && IsInstanceMethodCallback<Fn>)
+    ClassDefineBuilder<Class>& instanceMethod(std::string name, Fn&& fn) {
+        mInstanceFunctions.emplace_back(std::move(name), std::forward<Fn>(fn));
+        return *this;
+    }
+
+    // 实例方法（自动包装）/ Instance method with automatic binding
+    template <typename Fn>
+        requires(!std::is_void_v<Class> && !IsInstanceMethodCallback<Fn> && std::is_member_function_pointer_v<Fn>)
+    ClassDefineBuilder<Class>& instanceMethod(std::string name, Fn&& fn) {
+        mInstanceFunctions.emplace_back(std::move(name), internal::bindInstanceMethod<Class>(std::forward<Fn>(fn)));
+        return *this;
+    }
+
+    // 实例重载方法 / Overloaded instance methods
+    template <typename... Fn>
+        requires(
+            !std::is_void_v<Class>
+            && (sizeof...(Fn) > 1 && (!IsInstanceMethodCallback<Fn> && ...)
+                && (std::is_member_function_pointer_v<Fn> && ...))
+        )
+    ClassDefineBuilder<Class>& instanceMethod(std::string name, Fn&&... fn) {
+        mInstanceFunctions.emplace_back(
+            std::move(name),
+            internal::bindInstanceOverloadedMethod<Class>(std::forward<Fn>(fn)...)
+        );
+        return *this;
+    }
+
+    // 实例属性（回调）/ Instance property with callbacks
+    ClassDefineBuilder<Class>&
+    instanceProperty(std::string name, InstanceGetterCallback getter, InstanceSetterCallback setter = nullptr) {
+        static_assert(!std::is_void_v<Class>, "Only instance class can have instanceProperty");
+        mInstanceProperty.emplace_back(std::move(name), std::move(getter), std::move(setter));
+        return *this;
+    }
+
+    // 实例属性（成员变量）/ Instance property from T C::* member
+    template <typename Member>
+        requires(!std::is_void_v<Class> && std::is_member_object_pointer_v<Member>)
+    ClassDefineBuilder<Class>& instanceProperty(std::string name, Member member) {
+        auto gs = internal::bindInstanceProperty<Class>(std::forward<Member>(member));
+        mInstanceProperty.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
+        return *this;
+    }
+
+    // 设置继承关系 / Set base class
+    ClassDefineBuilder<Class>& extends(ClassDefine const& parent) {
+        static_assert(!std::is_void_v<Class>, "Only instance classes can set up inheritance.");
+        mExtends = &parent;
+        return *this;
+    }
+
+    ClassDefine build() {
+        if (mIsInstanceClass && !mInstanceConstructor) {
+            throw std::logic_error("Instance class must have a constructor!");
+        }
+
+        ClassDefine::TypedWrappedResourceFactory factory = nullptr;
+        if constexpr (!std::is_void_v<Class>) {
+            factory = [](void* instance) -> std::unique_ptr<WrappedResource> {
+                return WrappedResource::make(
+                    instance,
+                    [](void* res) -> void* { return res; },
+                    [](void* res) -> void { delete static_cast<Class*>(res); }
+                );
+            };
+        }
+
+        return ClassDefine{
+            std::move(mClassName),
+            StaticDefine{std::move(mStaticProperty), std::move(mStaticFunctions)},
+            InstanceDefine{
+                         std::move(mInstanceConstructor),
+                         std::move(mInstanceProperty),
+                         std::move(mInstanceFunctions)
+            },
+            mExtends,
+            factory
+        };
+    }
+};
+
+
+template <typename C>
+inline ClassDefineBuilder<C> defineClass(std::string className) {
+    return ClassDefineBuilder<C>(std::move(className));
+}
 
 
 } // namespace qjspp

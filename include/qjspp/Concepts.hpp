@@ -45,5 +45,8 @@ concept IsWrappedType = std::same_as<T, Value> || std::same_as<T, Undefined> || 
 template <typename T>
 concept IsFunctionCallback = std::is_invocable_r_v<Value, T, Arguments const&>;
 
+template <typename T>
+concept IsInstanceMethodCallback = std::is_invocable_r_v<Value, T, void*, Arguments const&>;
+
 
 } // namespace qjspp
