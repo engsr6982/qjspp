@@ -35,6 +35,14 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
         throw std::logic_error("Failed to create JS runtime or context");
     }
 
+#ifdef QJSPP_DEBUG
+    JS_SetDumpFlags(
+        runtime_,
+        JS_DUMP_LEAKS            // 检测内存泄露
+            | JS_DUMP_ATOM_LEAKS // 检测Atom泄露
+    );
+#endif
+
     std::call_once(kGlobalQjsClass, [this]() {
         JS_NewClassID(runtime_, &kPointerClassId);
         JS_NewClassID(runtime_, &kInstanceClassId);

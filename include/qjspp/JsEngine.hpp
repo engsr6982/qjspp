@@ -63,16 +63,56 @@ public:
 
     Object newInstance(ClassDefine const& def, std::unique_ptr<WrappedResource>&& wrappedResource);
 
-    // newInstanceOfRaw
-    // newInstanceOfView
-    // newInstanceOfView(owner)
-    // newInstanceOfUnique
-    // newInstanceOfShared
-    // newInstanceOfWeak
+    /**
+     * 创建一个新的 JavaScript 类实例
+     * @warning C++实例必须分配在堆上(使用 `new` 操作符), 栈分配的实例会导致悬垂引用和 GC 崩溃。
+     * @note qjspp 会接管实例的生命周期，GC 时自动销毁
+     */
+    template <typename T>
+    Object newInstanceOfRaw(ClassDefine const& def, T* instance);
+
+    /**
+     * 创建一个新的 JavaScript 类实例
+     * @note qjspp 不接管实例的生命周期，由外部管理实例的生命周期 (不自动销毁)
+     */
+    template <typename T>
+    Object newInstanceOfView(ClassDefine const& def, T* instance);
+
+    /**
+     * 创建一个新的 JavaScript 类实例
+     * @note qjspp 不接管实例的生命周期，对子资源增加引用计数关联生命周期(常见于对类成员创建Js实例，防止主实例 GC)
+     */
+    template <typename T>
+    Object newInstanceOfView(ClassDefine const& def, T* instance, Object const& ownerJs);
+
+    /**
+     * 创建一个新的 JavaScript 类实例
+     * @note qjspp 接管实例的生命周期，GC 时自动销毁
+     */
+    template <typename T>
+    Object newInstanceOfUnique(ClassDefine const& def, std::unique_ptr<T>&& instance);
+
+    /**
+     * 创建一个新的 JavaScript 类实例
+     * @note qjspp 共享对此实例的引用，仅在 Gc 时重置引用
+     */
+    template <typename T>
+    Object newInstanceOfShared(ClassDefine const& def, std::shared_ptr<T>&& instance);
+
+    /**
+     * 创建一个新的 JavaScript 类实例
+     * @note qjspp 仅在运行时尝试获取资源，如果获取不到资源则返回 null
+     */
+    template <typename T>
+    Object newInstanceOfWeak(ClassDefine const& def, std::weak_ptr<T>&& instance);
+
 
     [[nodiscard]] bool isInstanceOf(Object const& thiz, ClassDefine const& def) const;
 
     [[nodiscard]] void* getNativeInstanceOf(Object const& thiz, ClassDefine const& def) const;
+
+    template <typename T>
+    [[nodiscard]] inline T* getNativeInstanceOf(Object const& obj, ClassDefine const& def) const;
 
 private:
     using RawFunctionCallback = Value (*)(const Arguments&, void*, void*, bool constructCall);
