@@ -1,6 +1,9 @@
 #pragma once
 #include "Binding.hpp"
+#include "qjspp/Concepts.hpp"
+#include "qjspp/JsException.hpp"
 #include "qjspp/Types.hpp"
+#include "qjspp/Values.hpp"
 
 
 namespace qjspp::internal {
@@ -57,187 +60,187 @@ using ArgType_t = ArgNType<T, 0>;
 
 
 // 转换参数类型
-// template <typename Tuple, std::size_t... Is>
-// decltype(auto) ConvertArgsToTuple(const Arguments& args, std::index_sequence<Is...>) {
-//     return std::make_tuple(ConvertToCpp<std::tuple_element_t<Is, Tuple>>(args[Is])...);
-// }
+template <typename Tuple, std::size_t... Is>
+decltype(auto) ConvertArgsToTuple(Arguments const& args, std::index_sequence<Is...>) {
+    return std::make_tuple(ConvertToCpp<std::tuple_element_t<Is, Tuple>>(args[Is])...);
+}
 
 
 // static
-// template <typename Func>
-// FunctionCallback bindStaticFunction(Func&& func) {
-//     return [f = std::forward<Func>(func)](Arguments const& args) -> Local<JsValue> {
-//         using Traits       = FunctionTraits<std::decay_t<Func>>;
-//         using R            = typename Traits::ReturnType;
-//         using Tuple        = typename Traits::ArgsTuple;
-//         constexpr size_t N = std::tuple_size_v<Tuple>;
+template <typename Func>
+FunctionCallback bindStaticFunction(Func&& func) {
+    return [f = std::forward<Func>(func)](Arguments const& args) -> Value {
+        using Traits       = FunctionTraits<std::decay_t<Func>>;
+        using R            = typename Traits::ReturnType;
+        using Tuple        = typename Traits::ArgsTuple;
+        constexpr size_t N = std::tuple_size_v<Tuple>;
 
-//         if (args.length() != N) {
-//             throw JsException("argument count mismatch");
-//         }
+        if (args.length() != N) {
+            throw JsException("argument count mismatch");
+        }
 
-//         if constexpr (std::is_void_v<R>) {
-//             std::apply(f, ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>()));
-//             return JsUndefined::newUndefined();
-//         } else {
-//             decltype(auto) ret = std::apply(f, ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>()));
-//             return ConvertToJs(ret);
-//         }
-//     };
-// }
+        if constexpr (std::is_void_v<R>) {
+            std::apply(f, ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>()));
+            return {}; // undefined
+        } else {
+            decltype(auto) ret = std::apply(f, ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>()));
+            return ConvertToJs(ret);
+        }
+    };
+}
 
-// template <typename... Func>
-// FunctionCallback bindStaticOverloadedFunction(Func&&... funcs) {
-//     std::vector functions = {bindStaticFunction(std::forward<Func>(funcs))...};
-//     return [fs = std::move(functions)](Arguments const& args) -> Local<JsValue> {
-//         for (size_t i = 0; i < sizeof...(Func); ++i) {
-//             try {
-//                 return std::invoke(fs[i], args);
-//             } catch (JsException const&) {
-//                 if (i == sizeof...(Func) - 1) {
-//                     throw JsException{"no overload found"};
-//                 }
-//             }
-//         }
-//         return {}; // undefined
-//     };
-// }
+template <typename... Func>
+FunctionCallback bindStaticOverloadedFunction(Func&&... funcs) {
+    std::vector functions = {bindStaticFunction(std::forward<Func>(funcs))...};
+    return [fs = std::move(functions)](Arguments const& args) -> Value {
+        for (size_t i = 0; i < sizeof...(Func); ++i) {
+            try {
+                return std::invoke(fs[i], args);
+            } catch (JsException const&) {
+                if (i == sizeof...(Func) - 1) {
+                    throw JsException{"no overload found"};
+                }
+            }
+        }
+        return {}; // undefined
+    };
+}
 
 // Fn: () -> Ty
-// template <typename Fn>
-// GetterCallback bindStaticGetter(Fn&& fn) {
-//     return [f = std::forward<Fn>(fn)]() -> Local<JsValue> { return ConvertToJs(std::invoke(f)); };
-// }
+template <typename Fn>
+GetterCallback bindStaticGetter(Fn&& fn) {
+    return [f = std::forward<Fn>(fn)]() -> Value { return ConvertToJs(std::invoke(f)); };
+}
 
 // Fn: (Ty) -> void
-// template <typename Fn>
-// SetterCallback bindStaticSetter(Fn&& fn) {
-//     using Ty = ArgType_t<Fn>;
-//     return [f = std::forward<Fn>(fn)](Local<JsValue> const& value) { std::invoke(f, ConvertToCpp<Ty>(value)); };
-// }
+template <typename Fn>
+SetterCallback bindStaticSetter(Fn&& fn) {
+    using Ty = ArgType_t<Fn>;
+    return [f = std::forward<Fn>(fn)](Value const& value) { std::invoke(f, ConvertToCpp<Ty>(value)); };
+}
 
-// template <typename Ty>
-// std::pair<GetterCallback, SetterCallback> bindStaticProperty(Ty* p) {
-//     if constexpr (std::is_const_v<Ty>) {
-//         return {
-//             bindStaticGetter([p]() -> Ty { return *p; }),
-//             nullptr // const
-//         };
-//     } else {
-//         return {bindStaticGetter([p]() -> Ty { return *p; }), bindStaticSetter([p](Ty val) { *p = val; })};
-//     }
-// }
+template <typename Ty>
+std::pair<GetterCallback, SetterCallback> bindStaticProperty(Ty* p) {
+    if constexpr (std::is_const_v<Ty>) {
+        return {
+            bindStaticGetter([p]() -> Ty { return *p; }),
+            nullptr // const
+        };
+    } else {
+        return {bindStaticGetter([p]() -> Ty { return *p; }), bindStaticSetter([p](Ty val) { *p = val; })};
+    }
+}
 
 
 // Instance
-// template <typename C, typename... Args>
-// InstanceConstructor bindInstanceConstructor() {
-//     return [](Arguments const& args) -> void* {
-//         if constexpr (sizeof...(Args) == 0) {
-//             static_assert(
-//                 HasDefaultConstructor<C>,
-//                 "Class C must have a no-argument constructor; otherwise, a constructor must be specified."
-//             );
-//             if (args.length() != 0) return nullptr; // Parameter mismatch
-//             return new C();
+template <typename C, typename... Args>
+InstanceConstructor bindInstanceConstructor() {
+    return [](Arguments const& args) -> void* {
+        if constexpr (sizeof...(Args) == 0) {
+            static_assert(
+                HasDefaultConstructor_v<C>,
+                "Class C must have a no-argument constructor; otherwise, a constructor must be specified."
+            );
+            if (args.length() != 0) return nullptr; // Parameter mismatch
+            return new C();
 
-//         } else {
-//             constexpr size_t N = sizeof...(Args);
-//             if (args.length() != N) return nullptr; // Parameter mismatch
+        } else {
+            constexpr size_t N = sizeof...(Args);
+            if (args.length() != N) return nullptr; // Parameter mismatch
 
-//             using Tuple = std::tuple<Args...>;
+            using Tuple = std::tuple<Args...>;
 
-//             auto parameters = ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>());
-//             return std::apply(
-//                 [](auto&&... unpackedArgs) { return new C(std::forward<decltype(unpackedArgs)>(unpackedArgs)...); },
-//                 std::move(parameters)
-//             );
-//         }
-//     };
-// }
+            auto parameters = ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>());
+            return std::apply(
+                [](auto&&... unpackedArgs) { return new C(std::forward<decltype(unpackedArgs)>(unpackedArgs)...); },
+                std::move(parameters)
+            );
+        }
+    };
+}
 
-// template <typename C, typename Func>
-// InstanceMethodCallback bindInstanceMethod(Func&& fn) {
-//     return [f = std::forward<Func>(fn)](void* inst, const Arguments& args) -> Local<JsValue> {
-//         using Traits       = FunctionTraits<std::decay_t<Func>>;
-//         using R            = typename Traits::ReturnType;
-//         using Tuple        = typename Traits::ArgsTuple;
-//         constexpr size_t N = std::tuple_size_v<Tuple>;
+template <typename C, typename Func>
+InstanceMethodCallback bindInstanceMethod(Func&& fn) {
+    return [f = std::forward<Func>(fn)](void* inst, const Arguments& args) -> Value {
+        using Traits       = FunctionTraits<std::decay_t<Func>>;
+        using R            = typename Traits::ReturnType;
+        using Tuple        = typename Traits::ArgsTuple;
+        constexpr size_t N = std::tuple_size_v<Tuple>;
 
-//         if (args.length() != N) {
-//             throw JsException("argument count mismatch");
-//         }
+        if (args.length() != N) {
+            throw JsException("argument count mismatch");
+        }
 
-//         auto typedInstance = static_cast<C*>(inst);
+        auto typedInstance = static_cast<C*>(inst);
 
-//         if constexpr (std::is_void_v<R>) {
-//             std::apply(
-//                 [typedInstance, &f](auto&&... unpackedArgs) {
-//                     (typedInstance->*f)(std::forward<decltype(unpackedArgs)>(unpackedArgs)...);
-//                 },
-//                 ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>())
-//             );
-//             return JsUndefined::newUndefined();
-//         } else {
-//             decltype(auto) ret = std::apply(
-//                 [typedInstance, &f](auto&&... unpackedArgs) -> R {
-//                     return (typedInstance->*f)(std::forward<decltype(unpackedArgs)>(unpackedArgs)...);
-//                 },
-//                 ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>())
-//             );
-//             return ConvertToJs(ret);
-//         }
-//     };
-// }
+        if constexpr (std::is_void_v<R>) {
+            std::apply(
+                [typedInstance, &f](auto&&... unpackedArgs) {
+                    (typedInstance->*f)(std::forward<decltype(unpackedArgs)>(unpackedArgs)...);
+                },
+                ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>())
+            );
+            return {}; // undefined
+        } else {
+            decltype(auto) ret = std::apply(
+                [typedInstance, &f](auto&&... unpackedArgs) -> R {
+                    return (typedInstance->*f)(std::forward<decltype(unpackedArgs)>(unpackedArgs)...);
+                },
+                ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>())
+            );
+            return ConvertToJs(ret);
+        }
+    };
+}
 
-// template <typename C, typename... Func>
-// InstanceMethodCallback bindInstanceOverloadedMethod(Func&&... funcs) {
-//     std::vector functions = {bindInstanceMethod(std::forward<Func>(funcs))...};
-//     return [fs = std::move(functions)](void* inst, Arguments const& args) -> Local<JsValue> {
-//         for (size_t i = 0; i < sizeof...(Func); ++i) {
-//             try {
-//                 return std::invoke(fs[i], inst, args);
-//             } catch (JsException const&) {
-//                 if (i == sizeof...(Func) - 1) {
-//                     throw JsException{"no overload found"};
-//                 }
-//             }
-//         }
-//         return {}; // undefined
-//     };
-// }
+template <typename C, typename... Func>
+InstanceMethodCallback bindInstanceOverloadedMethod(Func&&... funcs) {
+    std::vector functions = {bindInstanceMethod(std::forward<Func>(funcs))...};
+    return [fs = std::move(functions)](void* inst, Arguments const& args) -> Value {
+        for (size_t i = 0; i < sizeof...(Func); ++i) {
+            try {
+                return std::invoke(fs[i], inst, args);
+            } catch (JsException const&) {
+                if (i == sizeof...(Func) - 1) {
+                    throw JsException{"no overload found"};
+                }
+            }
+        }
+        return {}; // undefined
+    };
+}
 
 // Fn: (C*) -> Ty
-// template <typename C, typename Fn>
-// InstanceGetterCallback bindInstanceGetter(Fn&& fn) {
-//     return [f = std::forward<Fn>(fn)](void* inst, Arguments const& /* args */) -> Local<JsValue> {
-//         return ConvertToJs(std::invoke(f, static_cast<C*>(inst)));
-//     };
-// }
+template <typename C, typename Fn>
+InstanceGetterCallback bindInstanceGetter(Fn&& fn) {
+    return [f = std::forward<Fn>(fn)](void* inst, Arguments const& /* args */) -> Value {
+        return ConvertToJs(std::invoke(f, static_cast<C*>(inst)));
+    };
+}
 
 // Fn: (void* inst, Ty val) -> void
-// template <typename C, typename Fn>
-// InstanceSetterCallback bindInstanceSetter(Fn&& fn) {
-//     using Ty = ArgNType<Fn, 1>; // (void* inst, Ty val)
-//     return [f = std::forward<Fn>(fn)](void* inst, Arguments const& args) -> void {
-//         std::invoke(f, static_cast<C*>(inst), ConvertToCpp<Ty>(args[0]));
-//     };
-// }
+template <typename C, typename Fn>
+InstanceSetterCallback bindInstanceSetter(Fn&& fn) {
+    using Ty = ArgNType<Fn, 1>; // (void* inst, Ty val)
+    return [f = std::forward<Fn>(fn)](void* inst, Arguments const& args) -> void {
+        std::invoke(f, static_cast<C*>(inst), ConvertToCpp<Ty>(args[0]));
+    };
+}
 
-// template <typename C, typename Ty>
-// std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(Ty C::* prop) {
-//     if constexpr (std::is_const_v<Ty>) {
-//         return {
-//             bindInstanceGetter<C>([prop](C* inst) -> Ty { return inst->*prop; }),
-//             nullptr // const
-//         };
-//     } else {
-//         return {
-//             bindInstanceGetter<C>([prop](C* inst) -> Ty { return inst->*prop; }),
-//             bindInstanceSetter<C>([prop](C* inst, Ty val) -> void { inst->*prop = val; })
-//         };
-//     }
-// }
+template <typename C, typename Ty>
+std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(Ty C::* prop) {
+    if constexpr (std::is_const_v<Ty>) {
+        return {
+            bindInstanceGetter<C>([prop](C* inst) -> Ty { return inst->*prop; }),
+            nullptr // const
+        };
+    } else {
+        return {
+            bindInstanceGetter<C>([prop](C* inst) -> Ty { return inst->*prop; }),
+            bindInstanceSetter<C>([prop](C* inst, Ty val) -> void { inst->*prop = val; })
+        };
+    }
+}
 
 
 } // namespace qjspp::internal
