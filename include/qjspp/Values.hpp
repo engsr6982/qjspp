@@ -238,9 +238,13 @@ class Function final {
 public:
     explicit Function(FunctionCallback callback);
 
-    // template <typename T>
-    //     requires(!IsFunctionCallback<T>)
-    // explicit Function(T&& func);
+    template <typename T>
+        requires(!IsFunctionCallback<T>)
+    explicit Function(T&& func);
+
+    template <typename... Fn>
+        requires(sizeof...(Fn) > 1 && (!IsFunctionCallback<Fn> && ...))
+    explicit Function(Fn&&... func);
 
     Value call(Value const& thiz, std::vector<Value> const& args) const;
 

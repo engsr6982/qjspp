@@ -1,4 +1,5 @@
 #pragma once
+#include "qjspp/Binding.hpp"
 #include "qjspp/Concepts.hpp"
 #include "qjspp/JsException.hpp"
 #include "qjspp/Values.hpp"
@@ -32,9 +33,13 @@ T Value::as() const {
 }
 
 
-// template <typename T>
-//     requires(!IsFunctionCallback<T>)
-// Function::Function(T&& func) {}
+template <typename T>
+    requires(!IsFunctionCallback<T>)
+Function::Function(T&& func) : qjspp::Function(internal::bindStaticFunction(std::forward<T>(func))) {}
+
+template <typename... Fn>
+    requires(sizeof...(Fn) > 1 && (!IsFunctionCallback<Fn> && ...))
+Function::Function(Fn&&... func) : qjspp::Function(internal::bindStaticOverloadedFunction(std::forward<Fn>(func)...)) {}
 
 
 } // namespace qjspp
