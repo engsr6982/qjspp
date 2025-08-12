@@ -180,6 +180,7 @@ public:
     [[nodiscard]] Value get(std::string const& key) const;
 
     void set(String const& key, Value const& value);
+    void set(std::string const& key, Value const& value);
 
     void remove(String const& key);
 

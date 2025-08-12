@@ -213,9 +213,10 @@ Value Object::get(std::string const& key) const {
     return Value{ret};
 }
 
-void Object::set(String const& key, Value const& value) {
+void Object::set(String const& key, Value const& value) { set(key.value(), value); }
+void Object::set(std::string const& key, Value const& value) {
     auto ctx = JsScope::currentContextChecked();
-    auto ret = JS_SetPropertyStr(ctx, val_, key.value().c_str(), JS_DupValue(ctx, value.val_));
+    auto ret = JS_SetPropertyStr(ctx, val_, key.c_str(), JS_DupValue(ctx, value.val_));
     JsException::check(ret);
 }
 
