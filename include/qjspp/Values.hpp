@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace qjspp {
@@ -106,9 +107,22 @@ public:
         return ty.val_;
     }
 
+    /**
+     * @note 包装值，内部会进行增加引用计数
+     */
     template <IsWrappedType T>
     [[nodiscard]] inline static T wrap(::JSValue val) {
         return T(val);
+    }
+
+    /**
+     * @note 移交值，内部不进行增加引用计数
+     */
+    template <IsWrappedType T>
+    [[nodiscard]] inline static T move(JSValue ty) {
+        auto undefined = T{JS_UNDEFINED};
+        undefined.val_ = std::move(ty);
+        return undefined;
     }
 };
 

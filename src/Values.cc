@@ -210,7 +210,7 @@ Value Object::get(String const& key) const { return get(key.value()); }
 Value Object::get(std::string const& key) const {
     auto ret = JS_GetPropertyStr(JsScope::currentContextChecked(), val_, key.c_str());
     JsException::check(ret);
-    return Value{ret};
+    return Value::move<Value>(ret);
 }
 
 void Object::set(String const& key, Value const& value) { set(key.value(), value); }
@@ -311,7 +311,7 @@ Value Array::operator[](size_t index) const { return get(index); }
 Value Array::get(size_t index) const {
     auto ret = JS_GetPropertyUint32(JsScope::currentContextChecked(), val_, static_cast<uint32_t>(index));
     JsException::check(ret);
-    return Value{ret};
+    return Value::move<Value>(ret);
 }
 
 void Array::set(size_t index, Value const& value) {
@@ -380,7 +380,7 @@ Value Function::call(Value const& thiz, std::vector<Value> const& args) const {
     JsException::check(ret);
     engine.pumpJobs();
 
-    return Value::wrap<Value>(ret);
+    return Value::move<Value>(ret);
 }
 
 Value Function::call() const { return call(Value{}, {}); }

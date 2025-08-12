@@ -14,6 +14,7 @@
 #include <fstream>
 #include <mutex>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 
@@ -118,7 +119,7 @@ Value JsEngine::eval(std::string const& code, std::string const& filename) {
     auto result = JS_Eval(context_, code.c_str(), code.size(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
     JsException::check(result);
     pumpJobs();
-    return Value::wrap<Value>(result);
+    return Value::move<Value>(result);
 }
 
 Value JsEngine::loadScript(std::filesystem::path const& path) {
@@ -146,7 +147,7 @@ Value JsEngine::loadScript(std::filesystem::path const& path) {
     }
     pumpJobs();
 
-    return Value::wrap<Value>(result);
+    return Value::move<Value>(result);
 }
 
 void JsEngine::loadByteCode(std::filesystem::path const& path) {
@@ -166,7 +167,7 @@ void JsEngine::loadByteCode(std::filesystem::path const& path) {
 Object JsEngine::globalThis() const {
     auto global = JS_GetGlobalObject(context_);
     JsException::check(global);
-    return Value::wrap<Object>(global);
+    return Value::move<Object>(global);
 }
 
 bool JsEngine::isDestroying() const { return isDestroying_; }
@@ -206,10 +207,10 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
         auto prototype = createPrototype(def);
         nativeClassData_.emplace(
             &def,
-            std::pair{
-                ctor,
-                prototype,
-            }
+            std::make_pair<JSValue, JSValue>(
+                JS_DupValue(context_, Value::extract(ctor)),
+                JS_DupValue(context_, Value::extract(prototype))
+            )
         );
         ctor.set("prototype", prototype);
 
@@ -275,7 +276,7 @@ Function JsEngine::createQuickJsCFunction(void* data1, void* data2, RawFunctionC
     JS_FreeValue(context_, anyCb);
 
     JsException::check(fn);
-    return Value::wrap<Function>(fn);
+    return Value::move<Function>(fn);
 }
 Object JsEngine::createConstuctor(ClassDefine const& def) {
     auto ctor = createQuickJsCFunction(
@@ -324,13 +325,13 @@ Object JsEngine::createConstuctor(ClassDefine const& def) {
             }
 
             JS_SetOpaque(obj, wrapped);
-            return Value::wrap<Value>(obj);
+            return Value::move<Value>(obj);
         }
     );
 
     auto obj = JS_DupValue(context_, Value::extract(ctor));
     JsException::check(JS_SetConstructorBit(context_, obj, true));
-    return Value::wrap<Object>(obj);
+    return Value::move<Object>(obj);
 }
 Object JsEngine::createPrototype(ClassDefine const& def) {
     auto prototype = Object{};
@@ -433,6 +434,7 @@ void JsEngine::implStaticRegister(Object& ctor, StaticDefine const& def) {
                 [](Arguments const& args, void* data1, void*, bool) -> Value {
                     auto def = static_cast<StaticDefine::Property*>(data1);
                     (def->setter_)(args[0]);
+                    return {};
                 }
             );
         }

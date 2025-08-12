@@ -85,7 +85,7 @@ void JsException::makeException() const {
         default:
             JS_Throw(ctx, Value::extract(String(data_->message_)));
         }
-        data_->exception_ = Value::wrap<Value>(JS_GetException(ctx));
+        data_->exception_ = Value::move<Value>(JS_GetException(ctx));
     }
 }
 
@@ -101,7 +101,7 @@ void JsException::check(int code, const char* msg) {
         auto error = JS_GetException(ctx);
 
         if (JS_IsObject(error)) {
-            throw JsException(Value::wrap<Value>(error));
+            throw JsException(Value::move<Value>(error));
         } else {
             JS_FreeValue(ctx, error);
             throw JsException(Type::Error, msg);
@@ -112,7 +112,7 @@ void JsException::check(int code, const char* msg) {
 void JsException::check(JSContext* ctx) {
     auto exc = JS_GetException(ctx);
     if (JS_IsException(exc)) {
-        throw JsException(Value::wrap<Value>(exc));
+        throw JsException(Value::move<Value>(exc)); // 移交所有权
     }
     JS_FreeValue(ctx, exc);
 }
