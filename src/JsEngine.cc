@@ -5,8 +5,6 @@
 #include "qjspp/TaskQueue.hpp"
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
-#include "quickjs-libc.h"
-#include "quickjs.h"
 #include <array>
 #include <cassert>
 #include <cstddef>
