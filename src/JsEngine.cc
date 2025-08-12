@@ -473,9 +473,18 @@ Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<WrappedReso
             "The native class " + def.name_ + " is not registered, so an instance cannot be constructed."
         };
     }
-    auto ctor = Value::wrap<Value>(iter->second.first);
-    // TODO: impl
-    throw JsException{"Not implemented."};
+    auto instance = JS_NewObjectClass(context_, static_cast<int>(kPointerClassId));
+    JsException::check(instance);
+    JS_SetOpaque(instance, wrappedResource.release());
+
+    std::array<JSValue, 1> args = {instance};
+
+    auto& ctor   = iter->second.first;
+    auto  result = JS_CallConstructor(context_, ctor, args.size(), args.data());
+    JsException::check(result);
+    pumpJobs();
+
+    return Value::move<Object>(result);
 }
 
 bool JsEngine::isInstanceOf(Object const& thiz, ClassDefine const& def) const {
