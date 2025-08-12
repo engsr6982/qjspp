@@ -89,10 +89,13 @@ JsEngine::~JsEngine() {
     userData_.reset();
     queue_.reset();
 
-
     JS_FreeAtom(context_, lengthAtom_);
 
     // TODO: free all managed resources
+    for (auto&& [def, data] : nativeClassData_) {
+        JS_FreeValue(context_, data.first);
+        JS_FreeValue(context_, data.second);
+    }
 
     JS_RunGC(runtime_);
     JS_FreeContext(context_);
