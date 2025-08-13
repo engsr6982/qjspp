@@ -270,9 +270,12 @@ bool Object::instanceOf(Value const& value) const {
 }
 
 bool Object::defineOwnProperty(String const& key, Value const& value, PropertyAttributes attr) {
+    return defineOwnProperty(key.value(), value, attr);
+}
+bool Object::defineOwnProperty(std::string const& key, Value const& value, PropertyAttributes attr) {
     auto ctx = JsScope::currentContextChecked();
 
-    JSAtom atom  = JS_NewAtom(ctx, key.value().c_str());
+    JSAtom atom  = JS_NewAtom(ctx, key.c_str());
     int    flags = toQuickJSFlags(attr);
 
     int ret = JS_DefinePropertyValue(ctx, val_, atom, Value::extract(value), flags);

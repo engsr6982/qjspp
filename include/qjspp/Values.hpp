@@ -208,8 +208,9 @@ public:
 
     [[nodiscard]] bool instanceOf(Value const& value) const;
 
-    [[nodiscard]] bool
-    defineOwnProperty(String const& key, Value const& value, PropertyAttributes attr = PropertyAttributes::None);
+    bool defineOwnProperty(String const& key, Value const& value, PropertyAttributes attr = PropertyAttributes::None);
+    bool
+    defineOwnProperty(std::string const& key, Value const& value, PropertyAttributes attr = PropertyAttributes::None);
 };
 
 class Array final {
