@@ -8,13 +8,19 @@
 namespace qjspp {
 
 
+/**
+ * @note 由于 QuickJs C API 限制，此异常可能和标准 JavaScript 异常行为不同
+ *
+ * @note 对于 C++ 抛出的 Any 类型异常，在 JavaScript 侧是非标准异常 (无 .message 属性)
+ * @note 对于 JavaScript 侧抛出的异常，由于没有获取类型 API，因此 type-_ == Type::Any
+ */
 class JsException final : public std::exception {
     explicit JsException(Value exception);
 
 public:
-    enum class Type { Error, RangeError, ReferenceError, SyntaxError, TypeError };
+    enum class Type { Any, RangeError, ReferenceError, SyntaxError, TypeError };
 
-    explicit JsException(std::string message, Type type = Type::Error);
+    explicit JsException(std::string message, Type type = Type::ReferenceError);
     explicit JsException(Type type, std::string message);
 
     // The C++ standard requires exception classes to be reproducible
@@ -40,10 +46,9 @@ public:
 
 private:
     void extractMessage() const noexcept;
-    void makeException() const;
 
     struct ExceptionContext {
-        Type                type_{Type::Error};
+        Type                type_{Type::Any};
         mutable std::string message_{};
         Value               exception_{};
     };

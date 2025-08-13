@@ -7,24 +7,36 @@
 namespace qjspp {
 
 
-JsException::JsException(std::string message, Type type)
-: std::exception(),
-  data_(std::make_shared<ExceptionContext>()) {
-    data_->type_    = type;
-    data_->message_ = std::move(message);
-    makeException(); // null exception, make it
-}
-
+JsException::JsException(std::string message, Type type) : qjspp::JsException{type, std::move(message)} {}
 JsException::JsException(Type type, std::string message)
 : std::exception(),
   data_(std::make_shared<ExceptionContext>()) {
     data_->type_    = type;
     data_->message_ = std::move(message);
-    makeException(); // null exception, make it
+
+    auto ctx = JsScope::currentContextChecked();
+    switch (data_->type_) {
+    case Type::RangeError:
+        JS_ThrowRangeError(ctx, "%s", data_->message_.c_str());
+        break;
+    case Type::ReferenceError:
+        JS_ThrowReferenceError(ctx, "%s", data_->message_.c_str());
+        break;
+    case Type::SyntaxError:
+        JS_ThrowSyntaxError(ctx, "%s", data_->message_.c_str());
+        break;
+    case Type::TypeError:
+        JS_ThrowTypeError(ctx, "%s", data_->message_.c_str());
+        break;
+    case Type::Any:
+    default:
+        JS_Throw(ctx, Value::extract(String(data_->message_)));
+    }
+    data_->exception_ = Value::move<Value>(JS_GetException(ctx));
 }
 
 JsException::JsException(Value exception) : std::exception(), data_(std::make_shared<ExceptionContext>()) {
-    data_->type_      = Type::Error;
+    data_->type_      = Type::Any;
     data_->exception_ = std::move(exception);
 }
 
@@ -58,36 +70,17 @@ void JsException::extractMessage() const noexcept {
         return;
     }
     try {
+        if (data_->exception_.isString()) {
+            data_->message_ = data_->exception_.asString().value();
+            return; // 非标准异常
+        }
         auto obj        = data_->exception_.asObject();
         data_->message_ = obj.get("message").asString().value();
     } catch (JsException const&) {
-        data_->message_ = "[ERROR: Could not get exception message]";
+        data_->message_ = "[ERROR: failed to obtain message]";
     }
 }
 
-void JsException::makeException() const {
-    if (data_->exception_.isUninitialized()) {
-        auto ctx = JsScope::currentContextChecked();
-        switch (data_->type_) {
-        case Type::RangeError:
-            JS_ThrowRangeError(ctx, "%s", data_->message_.c_str());
-            break;
-        case Type::ReferenceError:
-            JS_ThrowReferenceError(ctx, "%s", data_->message_.c_str());
-            break;
-        case Type::SyntaxError:
-            JS_ThrowSyntaxError(ctx, "%s", data_->message_.c_str());
-            break;
-        case Type::TypeError:
-            JS_ThrowTypeError(ctx, "%s", data_->message_.c_str());
-            break;
-        case Type::Error:
-        default:
-            JS_Throw(ctx, Value::extract(String(data_->message_)));
-        }
-        data_->exception_ = Value::move<Value>(JS_GetException(ctx));
-    }
-}
 
 void JsException::check(JSValue value) {
     if (JS_IsException(value)) {
@@ -104,7 +97,7 @@ void JsException::check(int code, const char* msg) {
             throw JsException(Value::move<Value>(error));
         } else {
             JS_FreeValue(ctx, error);
-            throw JsException(Type::Error, msg);
+            throw JsException(msg);
         }
     }
 }
