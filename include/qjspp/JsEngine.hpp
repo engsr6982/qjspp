@@ -141,6 +141,13 @@ private:
     std::unordered_map<ClassDefine const*, std::pair<JSValue, JSValue>> nativeClassData_; // {ctor, proto}
     std::unordered_map<JSModuleDef*, ESModuleDefine const*>             nativeESModules_;
 
+#define QJSPP_ENABLE_INSTANCE_CALL_CHECK_CLASS_DEFINE
+#ifdef QJSPP_ENABLE_INSTANCE_CALL_CHECK_CLASS_DEFINE
+    static constexpr bool kInstanceCallCheckClassDefine = true;
+#else
+    static constexpr bool kInstanceCallCheckClassDefine = false;
+#endif
+
     // helpers
     static JSClassID kPointerClassId;
     static JSClassID kFunctionDataClassId; // Function

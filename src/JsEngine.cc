@@ -232,7 +232,8 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
                 JS_DupValue(context_, Value::extract(prototype))
             )
         );
-        ctor.set("prototype", prototype);
+        // ctor.set("prototype", prototype); // Function.prototype = <native class prototype>
+        JS_SetConstructor(context_, Value::extract(ctor), Value::extract(prototype));
 
         if (def.extends_ != nullptr) {
             if (!def.extends_->hasInstanceConstructor()) {
@@ -247,7 +248,13 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
                     + " because the parent class is not registered."
                 );
             }
-            // TODO: impl Inherit
+            auto& parentData = iter->second;
+
+            // Derived.prototype.__proto__ = Base.prototype;
+            JsException::check(JS_SetPrototype(context_, Value::extract(prototype), parentData.second));
+
+            // TODO: 静态属性继承
+            JsException::check(JS_SetPrototype(context_, Value::extract(ctor), parentData.first));
         }
     }
     return ctor;
@@ -316,6 +323,7 @@ Object JsEngine::createConstuctor(ClassDefine const& def) {
             auto const& data = engine->nativeClassData_.at(def);
 
             auto obj = JS_NewObjectClass(engine->context_, static_cast<int>(kInstanceClassId));
+            // new Function().__proto__ = <native class prototype>
             JsException::check(JS_SetPrototype(engine->context_, obj, data.second));
 
             void* instance        = nullptr;
@@ -363,7 +371,10 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
             [](Arguments const& args, void* data1, void* data2, bool) -> Value {
                 auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, kInstanceClassId));
                 auto thiz  = (*typed)();
-                if (thiz == nullptr || typed->define_ != data2) {
+                if (thiz == nullptr) {
+                    return Null{};
+                }
+                if (kInstanceCallCheckClassDefine && typed->define_ != data2 && typed->define_->extends_ != data2) {
                     throw JsException{"This object is not a valid instance of this class."};
                 }
                 auto def = static_cast<InstanceDefine::Method*>(data1);
@@ -383,7 +394,10 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
             [](Arguments const& args, void* data1, void* data2, bool) -> Value {
                 auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, kInstanceClassId));
                 auto thiz  = (*typed)();
-                if (thiz == nullptr || typed->define_ != data2) {
+                if (thiz == nullptr) {
+                    return Null{};
+                }
+                if (kInstanceCallCheckClassDefine && typed->define_ != data2 && typed->define_->extends_ != data2) {
                     throw JsException{"This object is not a valid instance of this class."};
                 }
                 auto def = static_cast<InstanceDefine::Property*>(data1);
@@ -398,7 +412,10 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                 [](Arguments const& args, void* data1, void* data2, bool) -> Value {
                     auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, kInstanceClassId));
                     auto thiz  = (*typed)();
-                    if (thiz == nullptr || typed->define_ != data2) {
+                    if (thiz == nullptr) {
+                        return Null{};
+                    }
+                    if (kInstanceCallCheckClassDefine && typed->define_ != data2 && typed->define_->extends_ != data2) {
                         throw JsException{"This object is not a valid instance of this class."};
                     }
                     auto def = static_cast<InstanceDefine::Property*>(data1);
