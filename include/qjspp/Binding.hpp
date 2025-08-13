@@ -350,3 +350,5 @@ inline ClassDefineBuilder<C> defineClass(std::string className) {
 
 
 } // namespace qjspp
+
+#include "Binding.inl"

@@ -2,6 +2,7 @@
 #include "Binding.hpp"
 #include "qjspp/Concepts.hpp"
 #include "qjspp/JsException.hpp"
+#include "qjspp/TypeConverter.hpp"
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
 
