@@ -73,7 +73,6 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
         if (ptr) {
             auto    wrapped = static_cast<WrappedResource*>(ptr);
             PauseGc pauseGc(const_cast<JsEngine*>(wrapped->engine_));
-            wrapped->deleter_(wrapped->resource_);
             delete wrapped;
         }
     };
