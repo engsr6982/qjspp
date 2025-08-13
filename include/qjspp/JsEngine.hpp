@@ -131,7 +131,7 @@ private:
 
     int              pauseGcCount_ = 0;      // 暂停GC计数
     bool             isDestroying_{false};   // 正在销毁
-    std::atomic_bool tickScheduled_ = false; // 是否已经调度了 tick (pumpJobs)
+    std::atomic_bool pumpScheduled_ = false; // 任务队列是否已经调度
 
     std::shared_ptr<void>        userData_{nullptr}; // 用户数据
     std::unique_ptr<TaskQueue>   queue_{nullptr};    // 任务队列

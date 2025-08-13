@@ -92,7 +92,6 @@ JsEngine::~JsEngine() {
 
     JS_FreeAtom(context_, lengthAtom_);
 
-    // TODO: free all managed resources
     for (auto&& [def, data] : nativeClassData_) {
         JS_FreeValue(context_, data.first);
         JS_FreeValue(context_, data.second);
@@ -111,14 +110,14 @@ void JsEngine::pumpJobs() {
     if (isDestroying()) return;
 
     bool no = false;
-    if (JS_IsJobPending(runtime_) && tickScheduled_.compare_exchange_strong(no, true)) {
+    if (JS_IsJobPending(runtime_) && pumpScheduled_.compare_exchange_strong(no, true)) {
         queue_->postTask(
             [](void* data) {
                 auto       engine = static_cast<JsEngine*>(data);
                 JSContext* ctx    = nullptr;
                 JsScope    lock(engine);
                 while (JS_ExecutePendingJob(engine->runtime_, &ctx) > 0) {}
-                engine->tickScheduled_ = false;
+                engine->pumpScheduled_ = false;
             },
             this
         );
