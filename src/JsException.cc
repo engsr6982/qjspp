@@ -1,6 +1,7 @@
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
 #include "qjspp/Values.hpp"
+#include "quickjs.h"
 #include <exception>
 
 
@@ -13,26 +14,6 @@ JsException::JsException(Type type, std::string message)
   data_(std::make_shared<ExceptionContext>()) {
     data_->type_    = type;
     data_->message_ = std::move(message);
-
-    auto ctx = JsScope::currentContextChecked();
-    switch (data_->type_) {
-    case Type::RangeError:
-        JS_ThrowRangeError(ctx, "%s", data_->message_.c_str());
-        break;
-    case Type::ReferenceError:
-        JS_ThrowReferenceError(ctx, "%s", data_->message_.c_str());
-        break;
-    case Type::SyntaxError:
-        JS_ThrowSyntaxError(ctx, "%s", data_->message_.c_str());
-        break;
-    case Type::TypeError:
-        JS_ThrowTypeError(ctx, "%s", data_->message_.c_str());
-        break;
-    case Type::Any:
-    default:
-        JS_Throw(ctx, Value::extract(String(data_->message_)));
-    }
-    data_->exception_ = Value::move<Value>(JS_GetException(ctx));
 }
 
 JsException::JsException(Value exception) : std::exception(), data_(std::make_shared<ExceptionContext>()) {
@@ -52,6 +33,31 @@ std::string JsException::message() const noexcept {
     return data_->message_;
 }
 
+Value JsException::exception() const noexcept {
+    if (data_->exception_.isUndefined()) {
+        auto ctx = JsScope::currentContextChecked();
+        switch (data_->type_) {
+        case Type::RangeError:
+            JS_ThrowRangeError(ctx, "%s", data_->message_.c_str());
+            break;
+        case Type::ReferenceError:
+            JS_ThrowReferenceError(ctx, "%s", data_->message_.c_str());
+            break;
+        case Type::SyntaxError:
+            JS_ThrowSyntaxError(ctx, "%s", data_->message_.c_str());
+            break;
+        case Type::TypeError:
+            JS_ThrowTypeError(ctx, "%s", data_->message_.c_str());
+            break;
+        case Type::Any:
+        default:
+            JS_Throw(ctx, Value::extract(String(data_->message_)));
+        }
+        data_->exception_ = Value::move<Value>(JS_GetException(ctx));
+    }
+    return data_->exception_;
+}
+
 std::string JsException::stacktrace() const noexcept {
     try {
         return data_->exception_.asObject().get("stack").asString().value();
@@ -61,7 +67,10 @@ std::string JsException::stacktrace() const noexcept {
 }
 
 JSValue JsException::rethrowToEngine() const {
-    JS_Throw(JsScope::currentContextChecked(), Value::extract(data_->exception_));
+    JS_Throw(
+        JsScope::currentContextChecked(),
+        JS_DupValue(JsScope::currentContextChecked(), Value::extract(exception()))
+    );
     return JS_EXCEPTION;
 }
 
@@ -82,6 +91,7 @@ void JsException::extractMessage() const noexcept {
 }
 
 
+// helpers
 void JsException::check(JSValue value) {
     if (JS_IsException(value)) {
         check(-1);

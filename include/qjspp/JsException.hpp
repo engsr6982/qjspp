@@ -35,6 +35,8 @@ public:
 
     [[nodiscard]] std::string message() const noexcept;
 
+    [[nodiscard]] Value exception() const noexcept;
+
     [[nodiscard]] std::string stacktrace() const noexcept;
 
     [[nodiscard]] JSValue rethrowToEngine() const;
