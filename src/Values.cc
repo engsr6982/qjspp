@@ -278,7 +278,7 @@ bool Object::defineOwnProperty(std::string const& key, Value const& value, Prope
     JSAtom atom  = JS_NewAtom(ctx, key.c_str());
     int    flags = toQuickJSFlags(attr);
 
-    int ret = JS_DefinePropertyValue(ctx, val_, atom, Value::extract(value), flags);
+    int ret = JS_DefinePropertyValue(ctx, val_, atom, JS_DupValue(ctx, Value::extract(value)), flags);
     JS_FreeAtom(ctx, atom);
     JsException::check(ret);
     return ret != 0;
