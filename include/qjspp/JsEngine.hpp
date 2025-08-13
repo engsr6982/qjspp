@@ -4,6 +4,7 @@
 #include "qjspp/Concepts.hpp"
 #include "qjspp/TaskQueue.hpp"
 #include "qjspp/Types.hpp"
+#include "quickjs.h"
 #include <cstddef>
 #include <filesystem>
 #include <memory>
@@ -59,8 +60,11 @@ public:
      * @param module 模块
      * @note 注册为模块后，需要使用 import xx from "<name>" 导入
      */
-    // void registerNativeModule(std::unique_ptr<ESModule> module);
+    void registerNativeESModule(ESModuleDefine const& module);
 
+    /**
+     * 创建一个新的 JavaScript 类实例
+     */
     Object newInstance(ClassDefine const& def, std::unique_ptr<WrappedResource>&& wrappedResource);
 
     /**
@@ -135,7 +139,7 @@ private:
     JSAtom                       lengthAtom_ = {};   // for Array
 
     std::unordered_map<ClassDefine const*, std::pair<JSValue, JSValue>> nativeClassData_; // {ctor, proto}
-    // std::unordered_map<std::string, ESModule*>                          registeredNativeModules_;
+    std::unordered_map<JSModuleDef*, ESModuleDefine const*>             nativeESModules_;
 
     // helpers
     static JSClassID kPointerClassId;
@@ -147,6 +151,7 @@ private:
     friend class Array; // 访问 lengthAtom_
     friend class Function;
     friend class PauseGc;
+    friend struct ESModuleDefine;
 };
 
 class PauseGc final {

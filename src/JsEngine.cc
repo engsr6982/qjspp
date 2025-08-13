@@ -1,5 +1,6 @@
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/Binding.hpp"
+#include "qjspp/ESModule.hpp"
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
 #include "qjspp/TaskQueue.hpp"
@@ -80,6 +81,7 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
 
     lengthAtom_ = JS_NewAtom(context_, "length");
 
+    JS_SetContextOpaque(context_, this);
     JS_SetModuleLoaderFunc(runtime_, NULL, js_module_loader, NULL);
 }
 
@@ -202,6 +204,16 @@ void JsEngine::setData(std::shared_ptr<void> data) { userData_ = std::move(data)
 void JsEngine::registerNativeClass(ClassDefine const& def) {
     auto ctor = createJavaScriptClassOf(def);
     globalThis().set(def.name_, ctor);
+}
+void JsEngine::registerNativeESModule(ESModuleDefine const& module) {
+    for (auto& c : module.class_) {
+        if (nativeClassData_.contains(c)) {
+            continue; // 因为 NativeClass 是全局唯一的，如果已经注册了，则跳过
+        }
+        registerNativeClass(*c);
+    }
+    auto mdef = module.init(this); // 初始化模块
+    nativeESModules_.emplace(mdef, &module);
 }
 Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
     if (nativeClassData_.contains(&def)) {
