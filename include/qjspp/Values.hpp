@@ -200,6 +200,7 @@ public:
     void set(std::string const& key, Value const& value);
 
     void remove(String const& key);
+    void remove(std::string const& key);
 
     [[nodiscard]] std::vector<String> getOwnPropertyNames() const;
 

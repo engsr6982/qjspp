@@ -222,10 +222,10 @@ void Object::set(std::string const& key, Value const& value) {
     JsException::check(ret);
 }
 
-void Object::remove(String const& key) {
+void Object::remove(String const& key) { remove(key.value()); }
+void Object::remove(std::string const& key) {
     auto ctx  = JsScope::currentContextChecked();
-    auto str  = key.value();
-    auto atom = JS_NewAtomLen(ctx, str.c_str(), str.size());
+    auto atom = JS_NewAtomLen(ctx, key.c_str(), key.size());
     auto ret  = JS_DeleteProperty(ctx, val_, atom, 0);
     JS_FreeAtom(ctx, atom);
     JsException::check(ret);
