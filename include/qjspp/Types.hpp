@@ -53,18 +53,68 @@ enum class PropertyAttributes : uint32_t {
 };
 
 inline int toQuickJSFlags(PropertyAttributes attr) {
-    int flags = 0;
-    if (!(static_cast<uint32_t>(attr) & static_cast<uint32_t>(PropertyAttributes::DontDelete))) {
-        flags |= JS_PROP_CONFIGURABLE; // 没有禁止删除 => 允许配置
+    int flags = JS_PROP_C_W_E; // 默认可配置、可写、可枚举
+
+    if (static_cast<uint32_t>(attr) & static_cast<uint32_t>(PropertyAttributes::DontDelete)) {
+        flags &= ~JS_PROP_CONFIGURABLE; // 禁止删除
     }
-    if (!(static_cast<uint32_t>(attr) & static_cast<uint32_t>(PropertyAttributes::ReadOnly))) {
-        flags |= JS_PROP_WRITABLE; // 没有只读 => 允许写
+    if (static_cast<uint32_t>(attr) & static_cast<uint32_t>(PropertyAttributes::ReadOnly)) {
+        flags &= ~JS_PROP_WRITABLE; // 只读
     }
-    if (!(static_cast<uint32_t>(attr) & static_cast<uint32_t>(PropertyAttributes::DontEnum))) {
-        flags |= JS_PROP_ENUMERABLE; // 没有禁止枚举 => 允许枚举
+    if (static_cast<uint32_t>(attr) & static_cast<uint32_t>(PropertyAttributes::DontEnum)) {
+        flags &= ~JS_PROP_ENUMERABLE; // 不可枚举
     }
+
     return flags;
 }
 
 
 } // namespace qjspp
+
+// 位或
+inline constexpr qjspp::PropertyAttributes
+operator|(qjspp::PropertyAttributes lhs, qjspp::PropertyAttributes rhs) noexcept {
+    using UT = std::underlying_type_t<qjspp::PropertyAttributes>;
+    return static_cast<qjspp::PropertyAttributes>(static_cast<UT>(lhs) | static_cast<UT>(rhs));
+}
+
+// 位与
+inline constexpr qjspp::PropertyAttributes
+operator&(qjspp::PropertyAttributes lhs, qjspp::PropertyAttributes rhs) noexcept {
+    using UT = std::underlying_type_t<qjspp::PropertyAttributes>;
+    return static_cast<qjspp::PropertyAttributes>(static_cast<UT>(lhs) & static_cast<UT>(rhs));
+}
+
+// 异或
+inline constexpr qjspp::PropertyAttributes
+operator^(qjspp::PropertyAttributes lhs, qjspp::PropertyAttributes rhs) noexcept {
+    using UT = std::underlying_type_t<qjspp::PropertyAttributes>;
+    return static_cast<qjspp::PropertyAttributes>(static_cast<UT>(lhs) ^ static_cast<UT>(rhs));
+}
+
+// 取反
+inline constexpr qjspp::PropertyAttributes operator~(qjspp::PropertyAttributes val) noexcept {
+    using UT = std::underlying_type_t<qjspp::PropertyAttributes>;
+    return static_cast<qjspp::PropertyAttributes>(~static_cast<UT>(val));
+}
+
+// |=
+inline constexpr qjspp::PropertyAttributes&
+operator|=(qjspp::PropertyAttributes& lhs, qjspp::PropertyAttributes rhs) noexcept {
+    lhs = lhs | rhs;
+    return lhs;
+}
+
+// &=
+inline constexpr qjspp::PropertyAttributes&
+operator&=(qjspp::PropertyAttributes& lhs, qjspp::PropertyAttributes rhs) noexcept {
+    lhs = lhs & rhs;
+    return lhs;
+}
+
+// ^=
+inline constexpr qjspp::PropertyAttributes&
+operator^=(qjspp::PropertyAttributes& lhs, qjspp::PropertyAttributes rhs) noexcept {
+    lhs = lhs ^ rhs;
+    return lhs;
+}
