@@ -81,7 +81,7 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
     lengthAtom_ = JS_NewAtom(context_, "length");
 
     JS_SetContextOpaque(context_, this);
-    JS_SetModuleLoaderFunc(runtime_, NULL, js_module_loader, NULL);
+    JS_SetModuleLoaderFunc(runtime_, nullptr, js_module_loader, nullptr);
 }
 
 JsEngine::~JsEngine() {
