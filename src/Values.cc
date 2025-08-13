@@ -3,6 +3,7 @@
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
 #include "qjspp/Types.hpp"
+#include "quickjs.h"
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -247,7 +248,7 @@ std::vector<String> Object::getOwnPropertyNames() const {
     std::vector<String> ret;
     ret.reserve(len);
     for (uint32_t i = 0; i < len; ++i) {
-        ret.push_back(String(JS_AtomToString(ctx, ptab[i].atom)));
+        ret.push_back(Value::move<String>(JS_AtomToString(ctx, ptab[i].atom)));
         JS_FreeAtom(ctx, ptab[i].atom);
     }
     return ret;
