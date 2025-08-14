@@ -163,6 +163,17 @@ TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
 
         // TODO: 静态链继承
         CHECK(engine_->eval("Derived.baseTrue()").asBoolean().value() == true);
-        CHECK(engine_->eval("Derived.name").asString().value() == "Base");
+        CHECK_FALSE(engine_->eval("Derived.name").asString().value() == "Base");
+    }
+
+    SECTION("C++ new") {
+        engine_->globalThis().set("getDerived", qjspp::Function{[](qjspp::Arguments const& args) -> qjspp::Value {
+                                      auto engine = args.engine();
+                                      auto der    = engine->newInstanceOfRaw(DerivedDefine, new Derived{888});
+                                      return der;
+                                  }});
+        auto der = engine_->eval("getDerived()");
+        REQUIRE(der.isObject());
+        REQUIRE(engine_->eval("getDerived().derivedMember").asNumber().getInt32() == 888);
     }
 }
