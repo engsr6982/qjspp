@@ -274,29 +274,24 @@ Function JsEngine::createQuickJsCFunction(void* data1, void* data2, RawFunctionC
         return dt;
     };
 
-    auto op1    = newOpaque(context_, data1);
-    auto op2    = newOpaque(context_, data2);
-    auto engine = newOpaque(context_, this);
-    auto anyCb  = newOpaque(context_, reinterpret_cast<void*>(cb));
+    auto op1   = newOpaque(context_, data1);
+    auto op2   = newOpaque(context_, data2);
+    auto anyCb = newOpaque(context_, reinterpret_cast<void*>(cb));
 
-    std::array<JSValue, 4> dataArray{op1, op2, engine, anyCb};
+    std::array<JSValue, 3> dataArray{op1, op2, anyCb};
 
     auto fn = JS_NewCFunctionData(
         context_,
         [](JSContext* ctx, JSValueConst thiz, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-            auto kPointerID = JS_GetClassID(data[0]);
-            assert(kPointerID != JS_INVALID_CLASS_ID);
+            auto engine = static_cast<JsEngine*>(JS_GetContextOpaque(ctx));
 
-            auto data1  = JS_GetOpaque(data[0], kPointerID);
-            auto data2  = JS_GetOpaque(data[1], kPointerID);
-            auto engine = static_cast<JsEngine*>(JS_GetOpaque(data[2], kPointerID));
-            auto cb     = reinterpret_cast<RawFunctionCallback>(JS_GetOpaque(data[3], kPointerID));
-
-            assert(kPointerID == engine->kPointerClassId);
+            auto data1    = JS_GetOpaque(data[0], engine->kPointerClassId);
+            auto data2    = JS_GetOpaque(data[1], engine->kPointerClassId);
+            auto callback = reinterpret_cast<RawFunctionCallback>(JS_GetOpaque(data[2], engine->kPointerClassId));
 
             try {
                 auto arguments = Arguments{engine, thiz, argc, argv};
-                auto ret       = cb(arguments, data1, data2, (magic & JS_CALL_FLAG_CONSTRUCTOR) != 0);
+                auto ret       = callback(arguments, data1, data2, (magic & JS_CALL_FLAG_CONSTRUCTOR) != 0);
                 return JS_DupValue(ctx, Value::extract(ret));
             } catch (JsException const& e) {
                 return e.rethrowToEngine();
@@ -310,7 +305,6 @@ Function JsEngine::createQuickJsCFunction(void* data1, void* data2, RawFunctionC
 
     JS_FreeValue(context_, op1);
     JS_FreeValue(context_, op2);
-    JS_FreeValue(context_, engine);
     JS_FreeValue(context_, anyCb);
 
     JsException::check(fn);
