@@ -6,6 +6,7 @@
 #include "qjspp/TaskQueue.hpp"
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
+#include "quickjs.h"
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -22,11 +23,20 @@ namespace qjspp {
 PauseGc::PauseGc(JsEngine* engine) : engine_(engine) { engine_->pauseGcCount_++; }
 PauseGc::~PauseGc() { engine_->pauseGcCount_--; }
 
+void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
+    auto classID = JS_GetClassID(val);
+    assert(classID != JS_INVALID_CLASS_ID); // ID 必须有效
 
-JSClassID             JsEngine::kPointerClassId      = 0;
-JSClassID             JsEngine::kInstanceClassId     = 0;
-JSClassID             JsEngine::kFunctionDataClassId = 0;
-static std::once_flag kGlobalQjsClass;
+    auto opaque = JS_GetOpaque(val, classID);
+    if (opaque) {
+        auto wrapped = static_cast<WrappedResource*>(opaque);
+        // 校验类ID是否匹配
+        assert(wrapped->define_->instanceDefine_.classId_ == classID);
+
+        PauseGc pauseGc(const_cast<JsEngine*>(wrapped->engine_));
+        delete wrapped;
+    }
+}
 
 
 JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQueue>()) {
@@ -39,47 +49,31 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
     }
 
 #ifdef QJSPP_DEBUG
-    JS_SetDumpFlags(
-        runtime_,
-        JS_DUMP_LEAKS            // 检测内存泄露
-            | JS_DUMP_ATOM_LEAKS // 检测Atom泄露
-    );
+    JS_SetDumpFlags(runtime_, JS_DUMP_LEAKS | JS_DUMP_ATOM_LEAKS);
 #endif
 
-    std::call_once(kGlobalQjsClass, [this]() {
-        JS_NewClassID(runtime_, &kPointerClassId);
-        JS_NewClassID(runtime_, &kInstanceClassId);
-        JS_NewClassID(runtime_, &kFunctionDataClassId);
-    });
-
+    // 指针数据
     JSClassDef pointer{};
     pointer.class_name = "RawPointer";
+    JS_NewClassID(runtime_, &kPointerClassId);
     JS_NewClass(runtime_, kPointerClassId, &pointer);
 
+    // 函数数据
     JSClassDef function{};
     function.class_name = "RawFunction";
     function.finalizer  = [](JSRuntime*, JSValue val) {
-        auto ptr = JS_GetOpaque(val, kFunctionDataClassId);
+        auto id  = JS_GetClassID(val);
+        auto ptr = JS_GetOpaque(val, id);
         if (ptr) {
             delete static_cast<FunctionCallback*>(ptr);
         }
     };
+    JS_NewClassID(runtime_, &kFunctionDataClassId);
     JS_NewClass(runtime_, kFunctionDataClassId, &function);
-
-    JSClassDef instance{};
-    instance.class_name = "NativeInstance";
-    instance.finalizer  = [](JSRuntime*, JSValue val) {
-        auto ptr = JS_GetOpaque(val, kInstanceClassId);
-        if (ptr) {
-            auto    wrapped = static_cast<WrappedResource*>(ptr);
-            PauseGc pauseGc(const_cast<JsEngine*>(wrapped->engine_));
-            delete wrapped;
-        }
-    };
-    JS_NewClass(runtime_, kInstanceClassId, &instance);
 
     lengthAtom_ = JS_NewAtom(context_, "length");
 
+    JS_SetRuntimeOpaque(runtime_, this);
     JS_SetContextOpaque(context_, this);
     JS_SetModuleLoaderFunc(runtime_, nullptr, js_module_loader, nullptr);
 }
@@ -219,48 +213,60 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
     }
 
     bool const instance = def.hasInstanceConstructor();
+    if (!instance) {
+        // 非实例类，挂载为 Object 的静态属性
+        auto ctor = Object{};
+        implStaticRegister(ctor, def.staticDefine_);
+        return ctor;
+    }
 
-    auto ctor = instance ? createConstuctor(def) : Object{};
+    if (def.instanceDefine_.classId_ == JS_INVALID_CLASS_ID) {
+        auto id = const_cast<JSClassID*>(&def.instanceDefine_.classId_);
+        JS_NewClassID(runtime_, id);
+    }
+
+    JSClassDef jsDef{};
+    jsDef.class_name = def.name_.c_str();
+    jsDef.finalizer  = &kTemplateClassFinalizer;
+
+    JS_NewClass(runtime_, def.instanceDefine_.classId_, &jsDef);
+
+    auto ctor  = createConstructor(def);
+    auto proto = createPrototype(def);
     implStaticRegister(ctor, def.staticDefine_);
 
-    if (instance) {
-        auto prototype = createPrototype(def);
-        nativeClassData_.emplace(
-            &def,
-            std::make_pair<JSValue, JSValue>(
-                JS_DupValue(context_, Value::extract(ctor)),
-                JS_DupValue(context_, Value::extract(prototype))
-            )
-        );
-        // ctor.set("prototype", prototype); // Function.prototype = <native class prototype>
-        JS_SetConstructor(context_, Value::extract(ctor), Value::extract(prototype));
+    JS_SetConstructor(context_, Value::extract(ctor), Value::extract(proto));
+    JS_SetClassProto(context_, def.instanceDefine_.classId_, JS_DupValue(context_, Value::extract(proto)));
 
-        if (def.extends_ != nullptr) {
-            if (!def.extends_->hasInstanceConstructor()) {
-                throw std::logic_error(
-                    "Native class " + def.name_ + " extends non-instance class " + def.extends_->name_
-                );
-            }
-            auto iter = nativeClassData_.find(def.extends_);
-            if (iter == nativeClassData_.end()) {
-                throw std::logic_error(
-                    def.name_ + " cannot inherit from " + def.extends_->name_
-                    + " because the parent class is not registered."
-                );
-            }
-            auto& parentData = iter->second;
-
-            // Derived.prototype.__proto__ = Base.prototype;
-            JsException::check(JS_SetPrototype(context_, Value::extract(prototype), parentData.second));
-
-            // TODO: 静态属性继承
-            JsException::check(JS_SetPrototype(context_, Value::extract(ctor), parentData.first));
+    nativeClassData_.emplace(
+        &def,
+        std::pair{
+            JS_DupValue(context_, Value::extract(ctor)),
+            JS_DupValue(context_, Value::extract(proto)),
         }
+    );
+
+    if (def.extends_ != nullptr) {
+        if (!def.extends_->hasInstanceConstructor()) {
+            throw std::logic_error("Native class " + def.name_ + " extends non-instance class " + def.extends_->name_);
+        }
+        if (!nativeClassData_.contains(def.extends_)) {
+            throw std::logic_error(
+                def.name_ + " cannot inherit from " + def.extends_->name_
+                + " because the parent class is not registered."
+            );
+        }
+        assert(def.extends_->instanceDefine_.classId_ != JS_INVALID_CLASS_ID);
+        auto base = JS_GetClassProto(context_, def.extends_->instanceDefine_.classId_);
+        auto code = JS_SetPrototype(context_, Value::extract(proto), base);
+        JS_FreeValue(context_, base);
+        JsException::check(code);
     }
+
     return ctor;
 }
 Function JsEngine::createQuickJsCFunction(void* data1, void* data2, RawFunctionCallback cb) {
-    auto newOpaque = [](JSContext* context, void* data) -> JSValue {
+    auto newOpaque = [this](JSContext* context, void* data) -> JSValue {
         if (!data) return JS_UNDEFINED;
         auto dt = JS_NewObjectClass(context, static_cast<int>(kPointerClassId));
         JsException::check(dt);
@@ -278,10 +284,15 @@ Function JsEngine::createQuickJsCFunction(void* data1, void* data2, RawFunctionC
     auto fn = JS_NewCFunctionData(
         context_,
         [](JSContext* ctx, JSValueConst thiz, int argc, JSValueConst* argv, int magic, JSValue* data) -> JSValue {
-            auto data1  = JS_GetOpaque(data[0], kPointerClassId);
-            auto data2  = JS_GetOpaque(data[1], kPointerClassId);
-            auto engine = static_cast<JsEngine*>(JS_GetOpaque(data[2], kPointerClassId));
-            auto cb     = reinterpret_cast<RawFunctionCallback>(JS_GetOpaque(data[3], kPointerClassId));
+            auto kPointerID = JS_GetClassID(data[0]);
+            assert(kPointerID != JS_INVALID_CLASS_ID);
+
+            auto data1  = JS_GetOpaque(data[0], kPointerID);
+            auto data2  = JS_GetOpaque(data[1], kPointerID);
+            auto engine = static_cast<JsEngine*>(JS_GetOpaque(data[2], kPointerID));
+            auto cb     = reinterpret_cast<RawFunctionCallback>(JS_GetOpaque(data[3], kPointerID));
+
+            assert(kPointerID == engine->kPointerClassId);
 
             try {
                 auto arguments = Arguments{engine, thiz, argc, argv};
@@ -305,7 +316,7 @@ Function JsEngine::createQuickJsCFunction(void* data1, void* data2, RawFunctionC
     JsException::check(fn);
     return Value::move<Function>(fn);
 }
-Object JsEngine::createConstuctor(ClassDefine const& def) {
+Object JsEngine::createConstructor(ClassDefine const& def) {
     auto ctor = createQuickJsCFunction(
         const_cast<ClassDefine*>(&def),
         nullptr,
@@ -320,16 +331,22 @@ Object JsEngine::createConstuctor(ClassDefine const& def) {
                 };
             }
 
-            auto const& data = engine->nativeClassData_.at(def);
+            JSValue proto = JS_GetPropertyStr(engine->context_, args.thiz_, "prototype");
+            JsException::check(proto);
 
-            auto obj = JS_NewObjectClass(engine->context_, static_cast<int>(kInstanceClassId));
-            // new Function().__proto__ = <native class prototype>
-            JsException::check(JS_SetPrototype(engine->context_, obj, data.second));
+            auto obj = JS_NewObjectProtoClass(engine->context_, proto, static_cast<int>(def->instanceDefine_.classId_));
+            JS_FreeValue(engine->context_, proto);
+            JsException::check(obj);
 
             void* instance        = nullptr;
             bool  constructFromJs = true;
             if (args.length_ == 1) {
-                if (auto ptr = JS_GetOpaque(Value::extract(args[0]), kPointerClassId)) {
+                auto rawArg0 = Value::extract(args[0]);
+                auto id      = JS_GetClassID(rawArg0);
+                if (auto ptr = JS_GetOpaque(rawArg0, id)) {
+                    assert(id != JS_INVALID_CLASS_ID);
+                    assert(id == engine->kPointerClassId);
+
                     instance        = ptr; // construct from c++
                     constructFromJs = false;
                 }
@@ -369,7 +386,9 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
             const_cast<InstanceDefine::Method*>(&method),
             defPtr,
             [](Arguments const& args, void* data1, void* data2, bool) -> Value {
-                auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, kInstanceClassId));
+                auto classID = JS_GetClassID(args.thiz_);
+                assert(classID != JS_INVALID_CLASS_ID);
+                auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
                 auto thiz  = (*typed)();
                 if (thiz == nullptr) {
                     return Null{};
@@ -392,7 +411,9 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
             const_cast<InstanceDefine::Property*>(&prop),
             defPtr,
             [](Arguments const& args, void* data1, void* data2, bool) -> Value {
-                auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, kInstanceClassId));
+                auto classID = JS_GetClassID(args.thiz_);
+                assert(classID != JS_INVALID_CLASS_ID);
+                auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
                 auto thiz  = (*typed)();
                 if (thiz == nullptr) {
                     return Null{};
@@ -410,7 +431,9 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                 const_cast<InstanceDefine::Property*>(&prop),
                 defPtr,
                 [](Arguments const& args, void* data1, void* data2, bool) -> Value {
-                    auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, kInstanceClassId));
+                    auto classID = JS_GetClassID(args.thiz_);
+                    assert(classID != JS_INVALID_CLASS_ID);
+                    auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
                     auto thiz  = (*typed)();
                     if (thiz == nullptr) {
                         return Null{};
@@ -524,7 +547,7 @@ void* JsEngine::getNativeInstanceOf(Object const& thiz, ClassDefine const& def) 
     if (!isInstanceOf(thiz, def)) {
         return nullptr;
     }
-    auto wrapped = static_cast<WrappedResource*>(JS_GetOpaque(Value::extract(thiz), kInstanceClassId));
+    auto wrapped = static_cast<WrappedResource*>(JS_GetOpaque(Value::extract(thiz), def.instanceDefine_.classId_));
     return (*wrapped)();
 }
 

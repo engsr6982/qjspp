@@ -122,7 +122,7 @@ private:
     using RawFunctionCallback = Value (*)(const Arguments&, void*, void*, bool constructCall);
     Object   createJavaScriptClassOf(ClassDefine const& def);
     Function createQuickJsCFunction(void* data1, void* data2, RawFunctionCallback cb);
-    Object   createConstuctor(ClassDefine const& def);
+    Object   createConstructor(ClassDefine const& def);
     Object   createPrototype(ClassDefine const& def);
     void     implStaticRegister(Object& ctor, StaticDefine const& def);
 
@@ -149,9 +149,10 @@ private:
 #endif
 
     // helpers
-    static JSClassID kPointerClassId;
-    static JSClassID kFunctionDataClassId; // Function
-    static JSClassID kInstanceClassId;
+    JSClassID kPointerClassId{JS_INVALID_CLASS_ID};
+    JSClassID kFunctionDataClassId{JS_INVALID_CLASS_ID}; // Function
+
+    static void kTemplateClassFinalizer(JSRuntime*, JSValue val);
 
     friend class JsScope;
     friend class ExitJsScope;

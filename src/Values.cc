@@ -4,6 +4,8 @@
 #include "qjspp/JsScope.hpp"
 #include "qjspp/Types.hpp"
 #include "quickjs.h"
+
+#include <assert.h>
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
@@ -92,7 +94,7 @@ Function Value::asFunction() const {
     String TYPE::toString() const {                                                                                    \
         auto ret = JS_ToString(JsScope::currentContextChecked(), val_);                                                \
         JsException::check(ret);                                                                                       \
-        return String(ret);                                                                                            \
+        return Value::move<String>(ret);                                                                               \
     }                                                                                                                  \
     bool TYPE::operator==(Value const& other) const {                                                                  \
         return JS_IsStrictEqual(JsScope::currentContextChecked(), val_, other.val_);                                   \
@@ -178,7 +180,7 @@ String::String(char const* value) : String{std::string_view{value}} {}
 
 std::string String::value() const {
     auto   ctx = JsScope::currentContextChecked();
-    size_t len;
+    size_t len{};
     auto   cstr = JS_ToCStringLen(ctx, &len, val_);
     if (cstr == nullptr) {
         throw JsException{"failed to convert String to std::string"};
@@ -341,11 +343,11 @@ Function::Function(FunctionCallback callback) {
 
     auto& engine = JsScope::currentEngineChecked();
 
-    auto fnData = JS_NewObjectClass(engine.context_, static_cast<int>(JsEngine::kFunctionDataClassId));
+    auto fnData = JS_NewObjectClass(engine.context_, static_cast<int>(engine.kFunctionDataClassId));
     JsException::check(fnData);
     JS_SetOpaque(fnData, ptr.release());
 
-    auto engineData = JS_NewObjectClass(engine.context_, static_cast<int>(JsEngine::kPointerClassId));
+    auto engineData = JS_NewObjectClass(engine.context_, static_cast<int>(engine.kPointerClassId));
     JsException::check(engineData);
     JS_SetOpaque(engineData, &engine);
 
@@ -354,9 +356,16 @@ Function::Function(FunctionCallback callback) {
     auto fn = JS_NewCFunctionData(
         engine.context_,
         [](JSContext* ctx, JSValueConst thiz, int argc, JSValueConst* argv, int /*magic*/, JSValue* data) -> JSValue {
-            auto cb =
-                static_cast<FunctionCallback*>(JS_GetOpaque(data[0], static_cast<int>(JsEngine::kFunctionDataClassId)));
-            auto engine = static_cast<JsEngine*>(JS_GetOpaque(data[1], static_cast<int>(JsEngine::kPointerClassId)));
+            auto kFuncID    = JS_GetClassID(data[0]);
+            auto kPointerID = JS_GetClassID(data[1]);
+            assert(kFuncID != JS_INVALID_CLASS_ID);
+            assert(kPointerID != JS_INVALID_CLASS_ID);
+
+            auto cb     = static_cast<FunctionCallback*>(JS_GetOpaque(data[0], static_cast<int>(kFuncID)));
+            auto engine = static_cast<JsEngine*>(JS_GetOpaque(data[1], static_cast<int>(kPointerID)));
+            assert(kFuncID == engine->kFunctionDataClassId);
+            assert(kPointerID == engine->kPointerClassId);
+
             try {
                 auto result = (*cb)(Arguments{engine, thiz, argc, argv});
                 return JS_DupValue(ctx, result.val_);

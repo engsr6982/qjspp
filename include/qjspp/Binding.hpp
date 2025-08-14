@@ -89,6 +89,9 @@ struct InstanceDefine {
     std::vector<Property> const property_;
     std::vector<Method> const   methods_;
 
+    // internal use only
+    JSClassID const classId_{JS_INVALID_CLASS_ID};
+
     explicit InstanceDefine(
         InstanceConstructor   constructor,
         std::vector<Property> property,
