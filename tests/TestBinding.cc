@@ -128,6 +128,20 @@ TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
     engine_->registerNativeClass(BaseDefine);
     engine_->registerNativeClass(DerivedDefine);
 
+    engine_->globalThis().set("debug", qjspp::Function{[](qjspp::Arguments const& args) -> qjspp::Value {
+                                  std::ostringstream oss;
+                                  for (int i = 0; i < args.length(); ++i) {
+                                      oss << args[i].toString().value();
+                                      if (i != args.length() - 1) {
+                                          oss << ", ";
+                                      }
+                                  }
+                                  std::cout << "[DEBUG] " << oss.str() << std::endl;
+                                  return {};
+                              }});
+    engine_->eval("debug(Base)");
+    engine_->eval("debug(Derived)");
+
     SECTION("JavaScript new") {
         auto der = engine_->eval("new Derived(114514);");
         REQUIRE(der.isObject());
@@ -147,20 +161,6 @@ TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
 
         REQUIRE(engine_->eval("Derived.foo").asString().value() == "Derived::foo"); // Derived::foo
         REQUIRE(engine_->eval("Base.name").asString().value() == "Base");           // Base::name
-
-        engine_->globalThis().set("debug", qjspp::Function{[](qjspp::Arguments const& args) -> qjspp::Value {
-                                      std::ostringstream oss;
-                                      for (int i = 0; i < args.length(); ++i) {
-                                          oss << args[i].toString().value();
-                                          if (i != args.length() - 1) {
-                                              oss << ", ";
-                                          }
-                                      }
-                                      std::cout << "[DEBUG] " << oss.str() << std::endl;
-                                      return {};
-                                  }});
-        engine_->eval("debug(Base)");
-        engine_->eval("debug(Derived)");
 
         REQUIRE(engine_->eval("new Derived(789).name").isUndefined() == true); // 按照标准，静态属性不能通过实例访问
         REQUIRE(engine_->eval("Derived.name").asString().value() == "Base");   //! Base::name
