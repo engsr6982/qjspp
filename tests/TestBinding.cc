@@ -162,11 +162,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
         REQUIRE(engine_->eval("new Derived(789).name").isUndefined() == true); // 按照标准，静态属性不能通过实例访问
 
         // TODO: 静态链继承
-        CHECK_THROWS_MATCHES(
-            engine_->eval("Derived.baseTrue()"),
-            qjspp::JsException,
-            Catch::Matchers::Message("not a function")
-        );
-        CHECK_FALSE(engine_->eval("Derived.name").asString().value() == "Base"); //! Base::name
+        CHECK(engine_->eval("Derived.baseTrue()").asBoolean().value() == true);
+        CHECK(engine_->eval("Derived.name").asString().value() == "Base");
     }
 }

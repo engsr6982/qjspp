@@ -250,17 +250,22 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
         if (!def.extends_->hasInstanceConstructor()) {
             throw std::logic_error("Native class " + def.name_ + " extends non-instance class " + def.extends_->name_);
         }
-        if (!nativeClassData_.contains(def.extends_)) {
+        auto iter = nativeClassData_.find(def.extends_);
+        if (iter == nativeClassData_.end()) {
             throw std::logic_error(
                 def.name_ + " cannot inherit from " + def.extends_->name_
                 + " because the parent class is not registered."
             );
         }
+        // Child.prototype.__proto__ = Parent.prototype;
         assert(def.extends_->instanceDefine_.classId_ != JS_INVALID_CLASS_ID);
         auto base = JS_GetClassProto(context_, def.extends_->instanceDefine_.classId_);
         auto code = JS_SetPrototype(context_, Value::extract(proto), base);
         JS_FreeValue(context_, base);
         JsException::check(code);
+
+        // Child.__proto__ = Parent;
+        JS_SetPrototype(context_, Value::extract(ctor), iter->second.first);
     }
 
     return ctor;
