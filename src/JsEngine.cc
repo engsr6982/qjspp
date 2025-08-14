@@ -528,6 +528,8 @@ Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<WrappedReso
 
     auto& ctor   = iter->second.first;
     auto  result = JS_CallConstructor(context_, ctor, args.size(), args.data());
+
+    JS_FreeValue(context_, instance);
     JsException::check(result);
     pumpJobs();
 
