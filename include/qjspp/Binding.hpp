@@ -308,7 +308,11 @@ public:
         return *this;
     }
 
-    // 设置继承关系 / Set base class
+    /**
+     * 设置继承关系 / Set base class
+     * @note 基类必须为一个实例类
+     * @note 由于 QuickJs C API 限制，目前只能做到 ES5 继承(无法继承静态属性、方法)
+     */
     ClassDefineBuilder<Class>& extends(ClassDefine const& parent) {
         static_assert(!std::is_void_v<Class>, "Only instance classes can set up inheritance.");
         mExtends = &parent;
