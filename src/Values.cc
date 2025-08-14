@@ -347,24 +347,17 @@ Function::Function(FunctionCallback callback) {
     JsException::check(fnData);
     JS_SetOpaque(fnData, ptr.release());
 
-    auto engineData = JS_NewObjectClass(engine.context_, static_cast<int>(engine.kPointerClassId));
-    JsException::check(engineData);
-    JS_SetOpaque(engineData, &engine);
-
-    JSValue data[2] = {fnData, engineData};
+    JSValue data[1] = {fnData};
 
     auto fn = JS_NewCFunctionData(
         engine.context_,
         [](JSContext* ctx, JSValueConst thiz, int argc, JSValueConst* argv, int /*magic*/, JSValue* data) -> JSValue {
-            auto kFuncID    = JS_GetClassID(data[0]);
-            auto kPointerID = JS_GetClassID(data[1]);
+            auto kFuncID = JS_GetClassID(data[0]);
             assert(kFuncID != JS_INVALID_CLASS_ID);
-            assert(kPointerID != JS_INVALID_CLASS_ID);
 
             auto cb     = static_cast<FunctionCallback*>(JS_GetOpaque(data[0], static_cast<int>(kFuncID)));
-            auto engine = static_cast<JsEngine*>(JS_GetOpaque(data[1], static_cast<int>(kPointerID)));
+            auto engine = static_cast<JsEngine*>(JS_GetContextOpaque(ctx));
             assert(kFuncID == engine->kFunctionDataClassId);
-            assert(kPointerID == engine->kPointerClassId);
 
             try {
                 auto result = (*cb)(Arguments{engine, thiz, argc, argv});
@@ -375,12 +368,11 @@ Function::Function(FunctionCallback callback) {
         },
         0,
         0,
-        2,
+        1,
         data
     );
     JsException::check(fn);
     JS_FreeValue(engine.context_, fnData);
-    JS_FreeValue(engine.context_, engineData);
     val_ = fn;
 }
 
