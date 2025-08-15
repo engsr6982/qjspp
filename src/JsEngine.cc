@@ -38,6 +38,27 @@ void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
         delete wrapped;
     }
 }
+bool JsEngine::kUpdateModuleMainFlag(JSContext* ctx, JSModuleDef* module, bool isMain) {
+    auto meta = JS_GetImportMeta(ctx, module);
+    if (JS_IsException(meta)) {
+        return false;
+    }
+    JS_DefinePropertyValueStr(ctx, meta, "main", JS_NewBool(ctx, isMain), JS_PROP_C_W_E);
+    JS_FreeValue(ctx, meta);
+    return true;
+}
+bool JsEngine::kUpdateModuleUrl(JSContext* ctx, JSModuleDef* module, std::string_view url) {
+    auto meta = JS_GetImportMeta(ctx, module);
+    if (JS_IsException(meta)) {
+        return false;
+    }
+    JS_DefinePropertyValueStr(ctx, meta, "url", JS_NewString(ctx, url.data()), JS_PROP_C_W_E);
+    JS_FreeValue(ctx, meta);
+    return true;
+}
+bool JsEngine::kUpdateModuleMeta(JSContext* ctx, JSModuleDef* module, std::string_view url, bool isMain) {
+    return kUpdateModuleUrl(ctx, module, url) && kUpdateModuleMainFlag(ctx, module, isMain);
+}
 
 
 /* ModuleLoader impl */
@@ -107,21 +128,23 @@ JSModuleDef* JsEngine::ModuleLoader::loader(JSContext* ctx, const char* canonica
         std::string source((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
         ifs.close();
 
+        // 编译模块
         JSValue result =
             JS_Eval(ctx, source.c_str(), source.size(), canonical, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
         if (JS_IsException(result)) return nullptr;
-        if (js_module_set_import_meta(ctx, result, false, false) < 0) {
+
+        // 更新 import meta
+        auto* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
+        if (!kUpdateModuleMeta(ctx, m, canonical, false)) {
             JS_FreeValue(ctx, result);
             return nullptr;
         }
-        auto* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
         JS_FreeValue(ctx, result);
         return m;
     }
 
     return nullptr;
 }
-
 
 /* JsEngine impl */
 JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQueue>()) {
@@ -227,7 +250,7 @@ Value JsEngine::eval(std::string const& code, std::string const& source, EvalTyp
     return Value::move<Value>(result);
 }
 
-Value JsEngine::loadScript(std::filesystem::path const& path) {
+Value JsEngine::loadScript(std::filesystem::path const& path, bool main) {
     if (!std::filesystem::exists(path)) {
         throw JsException{"File not found: " + path.string()};
     }
@@ -244,6 +267,11 @@ Value JsEngine::loadScript(std::filesystem::path const& path) {
 
     auto result = JS_Eval(context_, code.c_str(), code.size(), pathStr.c_str(), JS_EVAL_TYPE_MODULE);
     JsException::check(result); // check SyntaxError
+    if (main) {
+        assert(JS_VALUE_GET_TAG(result) == JS_TAG_MODULE);
+        auto module = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
+        kUpdateModuleMainFlag(context_, module, main);
+    }
 
     // module return rejected promise
     JSPromiseStateEnum state = JS_PromiseState(context_, result);

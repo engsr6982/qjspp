@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -33,7 +34,7 @@ public:
     Value eval(String const& code, String const& source, EvalType type = EvalType::kGlobal);
     Value eval(std::string const& code, std::string const& source = "<eval>", EvalType type = EvalType::kGlobal);
 
-    Value loadScript(std::filesystem::path const& path);
+    Value loadScript(std::filesystem::path const& path, bool main = false);
     void  loadByteCode(std::filesystem::path const& path);
 
     Object globalThis() const;
@@ -158,6 +159,9 @@ private:
     JSClassID kFunctionDataClassId{JS_INVALID_CLASS_ID}; // Function
 
     static void kTemplateClassFinalizer(JSRuntime*, JSValue val);
+    static bool kUpdateModuleMainFlag(JSContext* ctx, JSModuleDef* module, bool isMain);
+    static bool kUpdateModuleUrl(JSContext* ctx, JSModuleDef* module, std::string_view url);
+    static bool kUpdateModuleMeta(JSContext* ctx, JSModuleDef* module, std::string_view url, bool isMain);
 
     struct ModuleLoader {
         static char*        normalize(JSContext* ctx, const char* base, const char* name, void* opaque);
