@@ -25,6 +25,7 @@ public:
     [[nodiscard]] ::JSRuntime* runtime() const;
     [[nodiscard]] ::JSContext* context() const;
 
+    bool isJobPending() const;
     void pumpJobs();
 
     enum class EvalType { kGlobal, kModule };

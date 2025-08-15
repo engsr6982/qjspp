@@ -190,6 +190,8 @@ JsEngine::~JsEngine() {
 
 ::JSContext* JsEngine::context() const { return context_; }
 
+bool JsEngine::isJobPending() const { return JS_IsJobPending(runtime_); }
+
 void JsEngine::pumpJobs() {
     if (isDestroying()) return;
 
