@@ -39,23 +39,8 @@ jobs:
       - run: |
           xmake repo -u
 
-      - name: Checkout quickjs-ng
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          repository: engsr6982/quickjs-ng
-          path: quickjs-ng
-
-      - name: Build quickjs-ng static lib
-        run: |
-          cd quickjs-ng
-          mkdir build
-          cd build
-          cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DQJS_BUILD_LIBC=ON
-          cmake --build . --config Release --target qjs
-
       - run: |
-          xmake f -v -y -m release -p windows -a x64 --test=y --qjs_include="quickjs-ng" --qjs_lib="quickjs-ng/build/Release/qjs.lib"
+          xmake f -v -y -m release -p windows -a x64 --test=y
 
       - run: |
           xmake -v -y
