@@ -86,7 +86,7 @@ Function Value::asFunction() const {
     TYPE::~TYPE() { JS_FreeValue(JsScope::currentContextChecked(), val_); }                                            \
     Value TYPE::asValue() const { return Value(val_); }                                                                \
     void  TYPE::reset() {                                                                                              \
-        if (!JS_IsUndefined(val_)) {                                                                                  \
+        if (operator bool()) {                                                                                        \
             JS_FreeValue(JsScope::currentContextChecked(), val_);                                                     \
             val_ = JS_UNDEFINED;                                                                                      \
         }                                                                                                             \
