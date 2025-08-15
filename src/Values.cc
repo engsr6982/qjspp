@@ -83,7 +83,9 @@ Function Value::asFunction() const {
 
 #define IMPL_SPECIALIZE_RAII(TYPE)                                                                                     \
     TYPE::TYPE(JSValue val) : val_(JS_DupValue(JsScope::currentContextChecked(), val)) {}                              \
-    TYPE::~TYPE() { JS_FreeValue(JsScope::currentContextChecked(), val_); }                                            \
+    TYPE::~TYPE() {                                                                                                    \
+        if (operator bool()) JS_FreeValue(JsScope::currentContextChecked(), val_);                                     \
+    }                                                                                                                  \
     Value TYPE::asValue() const { return Value(val_); }                                                                \
     void  TYPE::reset() {                                                                                              \
         if (operator bool()) {                                                                                        \
