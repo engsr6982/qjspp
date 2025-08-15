@@ -112,13 +112,5 @@ void JsException::check(int code, const char* msg) {
     }
 }
 
-void JsException::check(JSContext* ctx) {
-    auto exc = JS_GetException(ctx);
-    if (JS_IsException(exc)) {
-        throw JsException(Value::move<Value>(exc)); // 移交所有权
-    }
-    JS_FreeValue(ctx, exc);
-}
-
 
 } // namespace qjspp

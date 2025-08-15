@@ -44,7 +44,6 @@ public:
 public:
     static void check(::JSValue val);
     static void check(int code, const char* msg = "Unknown error");
-    static void check(JSContext* ctx);
 
 private:
     void extractMessage() const noexcept;
