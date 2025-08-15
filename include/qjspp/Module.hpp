@@ -12,33 +12,34 @@ namespace qjspp {
  * ESModule - JavaScript ES Module
  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules
  */
-struct ESModuleDefine {
+struct ModuleDefine {
     std::string const                     name_;
     std::vector<ClassDefine const*> const class_;
 
-    explicit ESModuleDefine(std::string name, std::vector<ClassDefine const*> class_);
+    explicit ModuleDefine(std::string name, std::vector<ClassDefine const*> class_);
 
 private:
     JSModuleDef* init(JsEngine* engine) const;
     friend class JsEngine;
+    friend struct ModuleLoader;
 };
 
 
-struct ESModuleDefineBuilder {
+struct ModuleDefineBuilder {
 private:
     std::string                     name_;
     std::vector<ClassDefine const*> class_;
 
 public:
-    explicit ESModuleDefineBuilder(std::string name);
+    explicit ModuleDefineBuilder(std::string name);
 
-    ESModuleDefineBuilder& exportClass(ClassDefine const& def);
+    ModuleDefineBuilder& exportClass(ClassDefine const& def);
 
-    [[nodiscard]] ESModuleDefine build() const;
+    [[nodiscard]] ModuleDefine build() const;
 };
 
 
-inline ESModuleDefineBuilder defineESModule(std::string&& name) { return ESModuleDefineBuilder{std::move(name)}; }
+inline ModuleDefineBuilder defineModule(std::string&& name) { return ModuleDefineBuilder{std::move(name)}; }
 
 
 } // namespace qjspp

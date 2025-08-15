@@ -1,8 +1,8 @@
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/Binding.hpp"
-#include "qjspp/ESModule.hpp"
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
+#include "qjspp/Module.hpp"
 #include "qjspp/TaskQueue.hpp"
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <iostream>
 #include <mutex>
 #include <stdexcept>
 #include <utility>
@@ -20,8 +21,8 @@
 
 namespace qjspp {
 
-PauseGc::PauseGc(JsEngine* engine) : engine_(engine) { engine_->pauseGcCount_++; }
-PauseGc::~PauseGc() { engine_->pauseGcCount_--; }
+JsEngine::PauseGc::PauseGc(JsEngine* engine) : engine_(engine) { engine_->pauseGcCount_++; }
+JsEngine::PauseGc::~PauseGc() { engine_->pauseGcCount_--; }
 
 void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
     auto classID = JS_GetClassID(val);
@@ -39,6 +40,90 @@ void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
 }
 
 
+/* ModuleLoader impl */
+constexpr std::string_view FilePrefix = "file://";
+char* JsEngine::ModuleLoader::normalize(JSContext* ctx, const char* base, const char* name, void* opaque) {
+    auto* engine = static_cast<JsEngine*>(opaque);
+    // std::cout << "[normalize] base: " << base << ", name: " << name << std::endl;
+
+    std::string_view baseView{base};
+    std::string_view nameView{name};
+
+    // 1) 各种奇奇怪怪的 <eval>
+    if (baseView.starts_with('<') && baseView.ends_with('>')) {
+        return js_strdup(ctx, name);
+    }
+
+    // 2) 检查是否是原生模块
+    if (engine->nativeModules_.contains(name)) {
+        return js_strdup(ctx, name);
+    }
+
+    // 3) 检查是否是标准文件协议开头
+    if (std::strncmp(name, FilePrefix.data(), FilePrefix.size()) == 0) {
+        return js_strdup(ctx, name);
+    }
+
+    // 处理相对路径（./ 或 ../）
+    std::string baseStr(base);
+    if (baseStr.rfind(FilePrefix, 0) == 0) {
+        baseStr.erase(0, FilePrefix.size()); // 去掉 file://
+    }
+
+    // 获取 base 所在目录
+    std::filesystem::path basePath(baseStr);
+    basePath = basePath.parent_path();
+
+    // 拼接相对路径
+    std::filesystem::path targetPath = basePath / name;
+
+    // 规范化（处理 .. 和 .）
+    targetPath = std::filesystem::weakly_canonical(targetPath);
+
+    // 重新加上 file:// 前缀
+    std::string fullUrl = std::string(FilePrefix) + targetPath.generic_string();
+
+    return js_strdup(ctx, fullUrl.c_str());
+}
+JSModuleDef* JsEngine::ModuleLoader::loader(JSContext* ctx, const char* canonical, void* opaque) {
+    auto* engine = static_cast<JsEngine*>(opaque);
+    // std::cout << "[loader] canonical: " << canonical << std::endl;
+
+    // 1) 检查是否是原生模块
+    auto iter = engine->nativeModules_.find(canonical);
+    if (iter != engine->nativeModules_.end()) {
+        auto module = iter->second;
+        return module->init(engine);
+    }
+
+    // 2) file:// 协议 => 读取文件并编译
+    if (std::strncmp(canonical, FilePrefix.data(), FilePrefix.size()) == 0) {
+        std::string   path = canonical + FilePrefix.size();
+        std::ifstream ifs(path);
+        if (!ifs) {
+            JS_ThrowReferenceError(ctx, "Module file not found: %s", path.c_str());
+            return nullptr;
+        }
+        std::string source((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+        ifs.close();
+
+        JSValue result =
+            JS_Eval(ctx, source.c_str(), source.size(), canonical, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+        if (JS_IsException(result)) return nullptr;
+        if (js_module_set_import_meta(ctx, result, false, false) < 0) {
+            JS_FreeValue(ctx, result);
+            return nullptr;
+        }
+        auto* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
+        JS_FreeValue(ctx, result);
+        return m;
+    }
+
+    return nullptr;
+}
+
+
+/* JsEngine impl */
 JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQueue>()) {
     if (runtime_) {
         context_ = JS_NewContext(runtime_);
@@ -75,7 +160,7 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
 
     JS_SetRuntimeOpaque(runtime_, this);
     JS_SetContextOpaque(context_, this);
-    JS_SetModuleLoaderFunc(runtime_, nullptr, js_module_loader, nullptr);
+    JS_SetModuleLoaderFunc(runtime_, &ModuleLoader::normalize, &ModuleLoader::loader, this);
 }
 
 JsEngine::~JsEngine() {
@@ -85,9 +170,15 @@ JsEngine::~JsEngine() {
 
     JS_FreeAtom(context_, lengthAtom_);
 
-    for (auto&& [def, data] : nativeClassData_) {
-        JS_FreeValue(context_, data.first);
-        JS_FreeValue(context_, data.second);
+    {
+        JsScope scope{this};
+        for (auto&& [def, obj] : nativeStaticClasses_) {
+            obj.reset();
+        }
+        for (auto&& [def, data] : nativeInstanceClasses_) {
+            JS_FreeValue(context_, data.first);
+            JS_FreeValue(context_, data.second);
+        }
     }
 
     JS_RunGC(runtime_);
@@ -117,10 +208,18 @@ void JsEngine::pumpJobs() {
     }
 }
 
-Value JsEngine::eval(String const& code) { return eval(code.value()); }
-Value JsEngine::eval(String const& code, String const& filename) { return eval(code.value(), filename.value()); }
-Value JsEngine::eval(std::string const& code, std::string const& filename) {
-    auto result = JS_Eval(context_, code.c_str(), code.size(), filename.c_str(), JS_EVAL_TYPE_GLOBAL);
+Value JsEngine::eval(String const& code, EvalType type) { return eval(code.value(), "<eval>", type); }
+Value JsEngine::eval(String const& code, String const& source, EvalType type) {
+    return eval(code.value(), source ? source.value() : "<eval>", type);
+}
+Value JsEngine::eval(std::string const& code, std::string const& source, EvalType type) {
+    auto result = JS_Eval(
+        context_,
+        code.c_str(),
+        code.size(),
+        source.c_str(),
+        type == EvalType::kGlobal ? JS_EVAL_TYPE_GLOBAL : JS_EVAL_TYPE_MODULE
+    );
     JsException::check(result);
     pumpJobs();
     return Value::move<Value>(result);
@@ -136,18 +235,20 @@ Value JsEngine::loadScript(std::filesystem::path const& path) {
         throw JsException{"Failed to open file: " + path.string()};
     }
     std::string code((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-    auto        file = path.filename().string();
-    std::replace(file.begin(), file.end(), '\\', '/'); // replace \\ to /
+    auto        pathStr = path.string();
+#ifdef _WIN32
+    std::replace(pathStr.begin(), pathStr.end(), '\\', '/');
+#endif
 
-    auto result = JS_Eval(context_, code.c_str(), code.size(), file.c_str(), JS_EVAL_TYPE_MODULE);
+    auto result = JS_Eval(context_, code.c_str(), code.size(), pathStr.c_str(), JS_EVAL_TYPE_MODULE);
     JsException::check(result); // check SyntaxError
 
     // module return rejected promise
     JSPromiseStateEnum state = JS_PromiseState(context_, result);
     if (state == JSPromiseStateEnum::JS_PROMISE_REJECTED) {
         JSValue msg = JS_PromiseResult(context_, result);
-        JS_Throw(context_, msg);
-        JsException::check(-1);
+        JsException::check(msg);
+        JS_FreeValue(context_, msg);
     }
     pumpJobs();
 
@@ -193,31 +294,29 @@ TaskQueue* JsEngine::getTaskQueue() const { return queue_.get(); }
 
 void JsEngine::setData(std::shared_ptr<void> data) { userData_ = std::move(data); }
 
-void JsEngine::registerNativeClass(ClassDefine const& def) {
+Object JsEngine::registerNativeClass(ClassDefine const& def) {
     auto ctor = createJavaScriptClassOf(def);
     globalThis().set(def.name_, ctor);
+    return ctor;
 }
-void JsEngine::registerNativeESModule(ESModuleDefine const& module) {
-    for (auto& c : module.class_) {
-        if (nativeClassData_.contains(c)) {
-            continue; // 因为 NativeClass 是全局唯一的，如果已经注册了，则跳过
-        }
-        registerNativeClass(*c);
+void JsEngine::registerNativeModule(ModuleDefine const& module) {
+    if (nativeModules_.contains(module.name_)) {
+        throw std::logic_error("ES module " + module.name_ + " already registered");
     }
-    auto mdef = module.init(this); // 初始化模块
-    nativeESModules_.emplace(mdef, &module);
+    nativeModules_.emplace(module.name_, &module); // 懒加载
 }
 Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
-    if (nativeClassData_.contains(&def)) {
+    if (nativeInstanceClasses_.contains(&def)) {
         throw std::logic_error("Native class " + def.name_ + " already registered");
     }
 
     bool const instance = def.hasInstanceConstructor();
     if (!instance) {
         // 非实例类，挂载为 Object 的静态属性
-        auto ctor = Object{};
-        implStaticRegister(ctor, def.staticDefine_);
-        return ctor;
+        auto object = Object{};
+        implStaticRegister(object, def.staticDefine_);
+        nativeStaticClasses_.emplace(&def, object);
+        return object;
     }
 
     if (def.instanceDefine_.classId_ == JS_INVALID_CLASS_ID) {
@@ -238,7 +337,7 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
     JS_SetConstructor(context_, Value::extract(ctor), Value::extract(proto));
     JS_SetClassProto(context_, def.instanceDefine_.classId_, JS_DupValue(context_, Value::extract(proto)));
 
-    nativeClassData_.emplace(
+    nativeInstanceClasses_.emplace(
         &def,
         std::pair{
             JS_DupValue(context_, Value::extract(ctor)),
@@ -250,8 +349,8 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
         if (!def.extends_->hasInstanceConstructor()) {
             throw std::logic_error("Native class " + def.name_ + " extends non-instance class " + def.extends_->name_);
         }
-        auto iter = nativeClassData_.find(def.extends_);
-        if (iter == nativeClassData_.end()) {
+        auto iter = nativeInstanceClasses_.find(def.extends_);
+        if (iter == nativeInstanceClasses_.end()) {
             throw std::logic_error(
                 def.name_ + " cannot inherit from " + def.extends_->name_
                 + " because the parent class is not registered."
@@ -514,8 +613,8 @@ void JsEngine::implStaticRegister(Object& ctor, StaticDefine const& def) {
 
 
 Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<WrappedResource>&& wrappedResource) {
-    auto iter = nativeClassData_.find(&def);
-    if (iter == nativeClassData_.end()) {
+    auto iter = nativeInstanceClasses_.find(&def);
+    if (iter == nativeInstanceClasses_.end()) {
         throw JsException{
             "The native class " + def.name_ + " is not registered, so an instance cannot be constructed."
         };
@@ -537,8 +636,8 @@ Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<WrappedReso
 }
 
 bool JsEngine::isInstanceOf(Object const& thiz, ClassDefine const& def) const {
-    auto iter = nativeClassData_.find(&def);
-    if (iter != nativeClassData_.end()) {
+    auto iter = nativeInstanceClasses_.find(&def);
+    if (iter != nativeInstanceClasses_.end()) {
         return thiz.instanceOf(Value::wrap<Value>(iter->second.first));
     }
     return false;

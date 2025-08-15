@@ -10,6 +10,7 @@
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 
 namespace qjspp {
@@ -26,9 +27,10 @@ public:
 
     void pumpJobs();
 
-    Value eval(String const& code);
-    Value eval(String const& code, String const& filename);
-    Value eval(std::string const& code, std::string const& filename = "<eval>");
+    enum class EvalType { kGlobal, kModule };
+    Value eval(String const& code, EvalType type = EvalType::kGlobal);
+    Value eval(String const& code, String const& source, EvalType type = EvalType::kGlobal);
+    Value eval(std::string const& code, std::string const& source = "<eval>", EvalType type = EvalType::kGlobal);
 
     Value loadScript(std::filesystem::path const& path);
     void  loadByteCode(std::filesystem::path const& path);
@@ -53,14 +55,14 @@ public:
      * @param def 类定义
      * @note 默认此函数会注册的 native 类挂载到 JavaScript 的全局对象(globalThis)上
      */
-    void registerNativeClass(ClassDefine const& def);
+    Object registerNativeClass(ClassDefine const& def);
 
     /**
      * 注册一个原生模块
      * @param module 模块
      * @note 注册为模块后，需要使用 import xx from "<name>" 导入
      */
-    void registerNativeESModule(ESModuleDefine const& module);
+    void registerNativeModule(ModuleDefine const& module);
 
     /**
      * 创建一个新的 JavaScript 类实例
@@ -138,8 +140,10 @@ private:
     mutable std::recursive_mutex mutex_;             // 线程安全互斥量
     JSAtom                       lengthAtom_ = {};   // for Array
 
-    std::unordered_map<ClassDefine const*, std::pair<JSValue, JSValue>> nativeClassData_; // {ctor, proto}
-    std::unordered_map<JSModuleDef*, ESModuleDefine const*>             nativeESModules_;
+    std::unordered_map<ClassDefine const*, Object>                      nativeStaticClasses_;   // {def, obj}
+    std::unordered_map<ClassDefine const*, std::pair<JSValue, JSValue>> nativeInstanceClasses_; // {ctor, proto}
+    std::unordered_map<std::string, ModuleDefine const*>                nativeModules_;         // {name, def} (懒加载)
+    std::unordered_map<JSModuleDef*, ModuleDefine const*>               loadedModules_;         // {module, def}
 
 #define QJSPP_ENABLE_INSTANCE_CALL_CHECK_CLASS_DEFINE
 #ifdef QJSPP_ENABLE_INSTANCE_CALL_CHECK_CLASS_DEFINE
@@ -154,21 +158,26 @@ private:
 
     static void kTemplateClassFinalizer(JSRuntime*, JSValue val);
 
+    struct ModuleLoader {
+        static char*        normalize(JSContext* ctx, const char* base, const char* name, void* opaque);
+        static JSModuleDef* loader(JSContext* ctx, const char* canonical, void* opaque);
+    };
+
+    class PauseGc final {
+        JsEngine* engine_;
+        QJSPP_DISALLOW_COPY_AND_MOVE(PauseGc);
+
+    public:
+        explicit PauseGc(JsEngine* engine);
+        ~PauseGc();
+    };
+
     friend class JsScope;
     friend class ExitJsScope;
     friend class Array; // 访问 lengthAtom_
     friend class Function;
     friend class PauseGc;
-    friend struct ESModuleDefine;
-};
-
-class PauseGc final {
-    JsEngine* engine_;
-    QJSPP_DISALLOW_COPY_AND_MOVE(PauseGc);
-
-public:
-    explicit PauseGc(JsEngine* engine);
-    ~PauseGc();
+    friend struct ModuleDefine;
 };
 
 

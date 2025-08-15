@@ -28,7 +28,7 @@ class Function;
 
 class Arguments;
 
-struct ESModuleDefine;
+struct ModuleDefine;
 
 struct StaticDefine;
 struct InstanceDefine;

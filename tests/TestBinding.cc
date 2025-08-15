@@ -6,6 +6,7 @@
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
+#include "qjspp/Module.hpp"
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
 #include <algorithm>
@@ -176,4 +177,36 @@ TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
         REQUIRE(der.isObject());
         REQUIRE(engine_->eval("getDerived().derivedMember").asNumber().getInt32() == 888);
     }
+
+    SECTION("JavaSceipt inherit") {
+        REQUIRE_NOTHROW(engine_->eval(R"(
+            class MyDerived extends Derived {
+                constructor() {
+                    super(123456);
+                }
+            };
+            const my = new MyDerived();
+            debug(`baseMember: ${my.baseMember}`);
+            debug(`baseBar: ${my.baseBar()}`);
+        )"));
+    }
+}
+
+qjspp::ModuleDefine NativeModuleDef =
+    qjspp::defineModule("native").exportClass(UtilDefine).exportClass(BaseDefine).exportClass(DerivedDefine).build();
+
+TEST_CASE_METHOD(TestEngineFixture, "Module Binding") {
+    qjspp::JsScope scope{engine_};
+
+    engine_->registerNativeModule(NativeModuleDef);
+
+    REQUIRE_NOTHROW(
+        engine_->eval("import { Base } from 'native'; Base.baseTrue();", "<eval>", qjspp::JsEngine::EvalType::kModule)
+    );
+
+    REQUIRE_NOTHROW(
+        engine_->eval("import { Util } from 'native'; Util.add(8,8);", "<eval>", qjspp::JsEngine::EvalType::kModule)
+    );
+
+    REQUIRE_NOTHROW(engine_->loadScript(std::filesystem::current_path() / "tests" / "module.js"));
 }
