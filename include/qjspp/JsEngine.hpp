@@ -35,7 +35,7 @@ public:
     Value eval(std::string const& code, std::string const& source = "<eval>", EvalType type = EvalType::kGlobal);
 
     Value loadScript(std::filesystem::path const& path, bool main = false);
-    void  loadByteCode(std::filesystem::path const& path);
+    void  loadByteCode(std::filesystem::path const& path, bool main = false);
 
     Object globalThis() const;
 

@@ -2,7 +2,6 @@
 #include <functional>
 
 #pragma warning(push, 0)
-#include <quickjs-libc.h>
 #include <quickjs.h>
 #pragma warning(pop)
 

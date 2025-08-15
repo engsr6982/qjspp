@@ -285,16 +285,42 @@ Value JsEngine::loadScript(std::filesystem::path const& path, bool main) {
     return Value::move<Value>(result);
 }
 
-void JsEngine::loadByteCode(std::filesystem::path const& path) {
+void JsEngine::loadByteCode(std::filesystem::path const& path, bool main) {
     std::ifstream ifs(path, std::ios::binary);
     if (!ifs) {
         throw JsException{"Failed to open binary file: " + path.string()};
     }
     std::vector<uint8_t> bytecode((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
 
-    js_std_eval_binary(context_, bytecode.data(), bytecode.size(), JS_EVAL_TYPE_MODULE);
+    JSValue result = JS_ReadObject(context_, bytecode.data(), bytecode.size(), JS_READ_OBJ_BYTECODE);
+    JsException::check(result);
 
-    JsException::check(context_); // 检查是否有挂起的异常
+    if (JS_VALUE_GET_TAG(result) == JS_TAG_MODULE) {
+        if (JS_ResolveModule(context_, result) < 0) {
+            JS_FreeValue(context_, result);
+            JsException::check(-1, "Failed to resolve module");
+        }
+        auto url = path.string();
+#ifdef _WIN32
+        std::replace(url.begin(), url.end(), '\\', '/');
+#endif
+        url = std::string{FilePrefix} + url;
+        assert(JS_VALUE_GET_TAG(result) == JS_TAG_MODULE);
+        auto module = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
+        kUpdateModuleMeta(context_, module, url, main);
+    }
+
+    JSValue ret = JS_EvalFunction(context_, result);
+    // module return rejected promise
+    JSPromiseStateEnum state = JS_PromiseState(context_, ret);
+    if (state == JSPromiseStateEnum::JS_PROMISE_REJECTED) {
+        JSValue msg = JS_PromiseResult(context_, ret);
+        JsException::check(msg);
+        JS_FreeValue(context_, msg);
+    }
+
+    JsException::check(ret);
+    JS_FreeValue(context_, ret);
 
     pumpJobs();
 }
