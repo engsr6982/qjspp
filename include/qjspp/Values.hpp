@@ -49,6 +49,8 @@ public:                                                                         
                                                                                                                        \
     bool operator==(Value const& other) const;                                                                         \
                                                                                                                        \
+    operator bool() const;                                                                                             \
+                                                                                                                       \
 private:                                                                                                               \
     explicit TYPE(::JSValue value);                                                                                    \
     ::JSValue val_ { JS_UNDEFINED }

@@ -98,8 +98,8 @@ Function Value::asFunction() const {
     }                                                                                                                  \
     bool TYPE::operator==(Value const& other) const {                                                                  \
         return JS_IsStrictEqual(JsScope::currentContextChecked(), val_, other.val_);                                   \
-    }
-
+    }                                                                                                                  \
+    TYPE::operator bool() const { return !JS_IsUninitialized(val_) && !JS_IsUndefined(val_) && !JS_IsNull(val_); }
 
 #define IMPL_SPECIALIZE_COPY_AND_MOVE(TYPE)                                                                            \
     TYPE::TYPE(TYPE const& copy) : val_(JS_DupValue(JsScope::currentContextChecked(), copy.val_)) {}                   \
