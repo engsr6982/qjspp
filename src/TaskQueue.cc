@@ -1,5 +1,7 @@
 #include "qjspp/TaskQueue.hpp"
 
+#include "qjspp/Binding.hpp"
+
 namespace qjspp {
 
 
@@ -44,15 +46,6 @@ bool TaskQueue::loopOnce() {
 }
 
 void TaskQueue::loopAndWait() {
-    // while (!shutdown_ && (awaitTasks_ && !tasks_.empty())) {
-    //     if (!loopOnce()) {
-    //         // 没有任务时等待
-    //         std::unique_lock<std::mutex> lock(mutex_);
-    //         if (tasks_.empty() && !shutdown_) {
-    //             cv_.wait_for(lock, std::chrono::milliseconds(100));
-    //         }
-    //     }
-    // }
     while (true) {
         if (shutdown_) {
             if (awaitTasks_ && !tasks_.empty()) {
@@ -77,16 +70,6 @@ void TaskQueue::shutdown(bool wait) {
         awaitTasks_ = wait;
     }
     cv_.notify_all();
-
-    // if (wait) {
-    //     // 等待所有任务完成
-    //     std::lock_guard<std::mutex> lock(mutex_);
-    //     while (!tasks_.empty()) {
-    //         auto task = tasks_.top();
-    //         tasks_.pop();
-    //         task.callback_(task.data_);
-    //     }
-    // }
 }
 
 
