@@ -62,7 +62,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Test JsEngine") {
         REQUIRE_NOTHROW(engine_->loadByteCode(std::filesystem::current_path() / "tests" / "test.bin"));
     }
 
-    SECTION("Test Proimse") {
+    SECTION("Test Promise") {
         bool done = false;
         auto test = qjspp::Function{[&done](qjspp::Arguments const& args) -> qjspp::Value {
             REQUIRE(args.length() == 1);
