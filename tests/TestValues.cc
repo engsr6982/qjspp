@@ -8,6 +8,7 @@
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 
 
@@ -71,6 +72,9 @@ TEST_CASE_METHOD(TestEngineFixture, "Values") {
             qjspp::JsException,
             Catch::Matchers::ExceptionMessageMatcher("can't convert to Number")
         );
+
+        auto i64 = qjspp::BigInt{int64_t{456}};
+        REQUIRE(i64.getInt64() == 456);
     }
 
     SECTION("Test Object") {

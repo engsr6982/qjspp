@@ -19,6 +19,7 @@ class Undefined;
 class Null;
 class Boolean;
 class Number;
+class BigInt;
 class String;
 class Object;
 class Array;

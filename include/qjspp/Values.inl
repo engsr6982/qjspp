@@ -3,6 +3,7 @@
 #include "qjspp/Concepts.hpp"
 #include "qjspp/JsException.hpp"
 #include "qjspp/Values.hpp"
+#include <type_traits>
 
 
 namespace qjspp {
@@ -20,6 +21,8 @@ T Value::as() const {
         return asBoolean();
     } else if constexpr (std::is_same_v<T, Number>) {
         return asNumber();
+    } else if constexpr (std::is_same_v<T, BigInt>) {
+        return asBigInt();
     } else if constexpr (std::is_same_v<T, String>) {
         return asString();
     } else if constexpr (std::is_same_v<T, Object>) {

@@ -25,6 +25,8 @@ ValueType Value::type() const {
         return ValueType::Boolean;
     } else if (isNumber()) {
         return ValueType::Number;
+    } else if (isBigInt()) {
+        return ValueType::BigInt;
     } else if (isString()) {
         return ValueType::String;
     } else if (isObject()) {
@@ -42,6 +44,7 @@ bool Value::isUndefined() const { return JS_IsUndefined(val_); }
 bool Value::isNull() const { return JS_IsNull(val_); }
 bool Value::isBoolean() const { return JS_IsBool(val_); }
 bool Value::isNumber() const { return JS_IsNumber(val_); }
+bool Value::isBigInt() const { return JS_IsBigInt(JsScope::currentContextChecked(), val_); }
 bool Value::isString() const { return JS_IsString(val_); }
 bool Value::isObject() const { return JS_IsObject(val_); }
 bool Value::isArray() const { return JS_IsArray(val_); }
@@ -62,6 +65,10 @@ Boolean Value::asBoolean() const {
 Number Value::asNumber() const {
     if (!isNumber()) throw JsException{"can't convert to Number"};
     return Number{val_};
+}
+BigInt Value::asBigInt() const {
+    if (!isBigInt()) throw JsException{"can't convert to BigInt"};
+    return BigInt{val_};
 }
 String Value::asString() const {
     if (!isString()) throw JsException{"can't convert to String"};
@@ -166,6 +173,23 @@ int Number::getInt32() const {
 int64_t Number::getInt64() const {
     int64_t ret;
     JsException::check(JS_ToInt64(JsScope::currentContextChecked(), &ret, val_));
+    return ret;
+}
+
+
+IMPL_SPECIALIZE_RAII(BigInt);
+IMPL_SPECIALIZE_COPY_AND_MOVE(BigInt);
+BigInt::BigInt(int64_t i64) : val_(JS_NewBigInt64(JsScope::currentContextChecked(), i64)) {}
+BigInt::BigInt(uint64_t u64) : val_(JS_NewBigUint64(JsScope::currentContextChecked(), u64)) {}
+
+int64_t BigInt::getInt64() const {
+    int64_t ret;
+    JsException::check(JS_ToBigInt64(JsScope::currentContextChecked(), &ret, val_));
+    return ret;
+}
+uint64_t BigInt::getUInt64() const {
+    uint64_t ret;
+    JsException::check(JS_ToBigUint64(JsScope::currentContextChecked(), &ret, val_));
     return ret;
 }
 

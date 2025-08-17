@@ -3,6 +3,7 @@
 #include "qjspp/Global.hpp"
 #include "qjspp/Types.hpp"
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -16,6 +17,7 @@ enum class ValueType {
     Null,
     Boolean,
     Number,
+    BigInt,
     String,
     Object,
     Array,
@@ -29,6 +31,7 @@ private:                                                                        
     friend class Null;                                                                                                 \
     friend class Boolean;                                                                                              \
     friend class Number;                                                                                               \
+    friend class BigInt;                                                                                               \
     friend class String;                                                                                               \
     friend class Object;                                                                                               \
     friend class Array;                                                                                                \
@@ -87,6 +90,7 @@ public:
     [[nodiscard]] bool isNull() const;
     [[nodiscard]] bool isBoolean() const;
     [[nodiscard]] bool isNumber() const;
+    [[nodiscard]] bool isBigInt() const;
     [[nodiscard]] bool isString() const;
     [[nodiscard]] bool isObject() const;
     [[nodiscard]] bool isArray() const;
@@ -96,6 +100,7 @@ public:
     [[nodiscard]] Null      asNull() const;
     [[nodiscard]] Boolean   asBoolean() const;
     [[nodiscard]] Number    asNumber() const;
+    [[nodiscard]] BigInt    asBigInt() const;
     [[nodiscard]] String    asString() const;
     [[nodiscard]] Object    asObject() const;
     [[nodiscard]] Array     asArray() const;
@@ -171,6 +176,18 @@ public:
     [[nodiscard]] double  getDouble() const;
     [[nodiscard]] int     getInt32() const;
     [[nodiscard]] int64_t getInt64() const;
+};
+
+class BigInt final {
+    SPECIALIZE_ALL(BigInt);
+    SPECIALIZE_NON_VALUE(BigInt);
+
+public:
+    explicit BigInt(int64_t i64);
+    explicit BigInt(uint64_t u64);
+
+    [[nodiscard]] int64_t  getInt64() const;
+    [[nodiscard]] uint64_t getUInt64() const;
 };
 
 class String final {
