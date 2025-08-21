@@ -4,6 +4,8 @@
 #include "qjspp/Types.hpp"
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -256,6 +258,8 @@ class Function final {
     SPECIALIZE_ALL(Function);
     SPECIALIZE_NON_VALUE(Function);
 
+    Value callImpl(Value const& thiz, int argc, Value const* argv) const;
+
 public:
     explicit Function(FunctionCallback callback);
 
@@ -268,6 +272,10 @@ public:
     explicit Function(Fn&&... func);
 
     Value call(Value const& thiz, std::vector<Value> const& args) const;
+
+    Value call(Value const& thiz, std::initializer_list<Value> args) const;
+
+    Value call(Value const& thiz, std::span<const Value> args) const;
 
     Value call() const;
 };

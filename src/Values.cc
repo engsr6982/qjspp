@@ -402,18 +402,28 @@ Function::Function(FunctionCallback callback) {
     val_ = fn;
 }
 
-Value Function::call(Value const& thiz, std::vector<Value> const& args) const {
+Value Function::callImpl(Value const& thiz, int argc, Value const* argv) const {
     auto& engine = JsScope::currentEngineChecked();
 
     static_assert(sizeof(Value) == sizeof(JSValue), "Value and JSValue must have the same size");
-    int      argc = static_cast<int>(args.size());
-    JSValue* argv = reinterpret_cast<JSValue*>(const_cast<Value*>(args.data())); // fast
+    auto* argv_ = reinterpret_cast<JSValue*>(const_cast<Value*>(argv)); // fast
 
-    auto ret = JS_Call(engine.context_, val_, thiz.isObject() ? thiz.val_ : JS_UNDEFINED, argc, argv);
+    auto ret = JS_Call(engine.context_, val_, thiz.isObject() ? thiz.val_ : JS_UNDEFINED, argc, argv_);
     JsException::check(ret);
     engine.pumpJobs();
-
     return Value::move<Value>(ret);
+}
+
+Value Function::call(Value const& thiz, std::vector<Value> const& args) const {
+    return callImpl(thiz, static_cast<int>(args.size()), args.data());
+}
+
+Value Function::call(Value const& thiz, std::initializer_list<Value> args) const {
+    return callImpl(thiz, static_cast<int>(args.size()), args.begin());
+}
+
+Value Function::call(Value const& thiz, std::span<const Value> args) const {
+    return callImpl(thiz, static_cast<int>(args.size()), args.data());
 }
 
 Value Function::call() const { return call(Value{}, {}); }
