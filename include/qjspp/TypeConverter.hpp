@@ -178,8 +178,8 @@ template <typename T>
     if constexpr (std::is_lvalue_reference_v<RequestedT>) { // 需要 U&
         if constexpr (std::is_pointer_v<std::remove_reference_t<ConvRet>>) {
             auto p = Conv::toCpp(value); // 返回 U*
-            if (!p) return nullptr;
-            return *p;
+            if (!p) throw std::runtime_error("TypeConverter::toCpp returned a null pointer.");
+            return static_cast<RequestedT&>(*p); // 返回 U&
         } else if constexpr (std::is_lvalue_reference_v<ConvRet>
                              || std::is_const_v<std::remove_reference_t<RequestedT>>) {
             return Conv::toCpp(value); // 已返回 U&，直接转发 或者 const T& 可以绑定临时
