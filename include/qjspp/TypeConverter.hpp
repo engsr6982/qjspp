@@ -79,15 +79,36 @@ using TypedConverter = TypeConverter<typename std::decay<T>::type>;
 // using TypedConverter = TypeConverter<T>;
 
 
+namespace detail {
+
+template <typename T, typename = void>
+constexpr bool has_toJs_Tref = false;
+
+template <typename T>
+constexpr bool has_toJs_Tref<T, std::void_t<decltype(TypedConverter<T>::toJs(std::declval<T&>()))>> = true;
+
+template <typename T, typename = void>
+constexpr bool has_toJs_Tval = false;
+
+template <typename T>
+constexpr bool has_toJs_Tval<T, std::void_t<decltype(TypedConverter<T>::toJs(std::declval<T>()))>> = true;
+
+template <typename T, typename = void>
+constexpr bool has_toJs_Tptr = false;
+
+template <typename T>
+constexpr bool has_toJs_Tptr<T, std::void_t<decltype(TypedConverter<T>::toJs(std::declval<std::add_pointer_t<T>>()))>> =
+    true;
+
+} // namespace detail
+
 template <typename T, typename = void>
 struct IsTypeConverterAvailable : std::false_type {};
 
 template <typename T>
-struct IsTypeConverterAvailable<
-    T,
-    std::void_t<
-        decltype(TypedConverter<T>::toJs(std::declval<T>())),
-        decltype(TypedConverter<T>::toCpp(std::declval<Value>()))>> : std::true_type {};
+struct IsTypeConverterAvailable<T, std::void_t<decltype(TypedConverter<T>::toCpp(std::declval<Value>()))>>
+: std::bool_constant<detail::has_toJs_Tref<T> || detail::has_toJs_Tval<T> || detail::has_toJs_Tptr<T>> {};
+
 
 template <typename T>
 constexpr bool IsTypeConverterAvailable_v = IsTypeConverterAvailable<T>::value;
