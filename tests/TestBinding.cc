@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <iostream>
 #include <sstream>
+#include <utility>
 
 
 struct Util {
@@ -209,4 +210,47 @@ TEST_CASE_METHOD(TestEngineFixture, "Module Binding") {
     );
 
     REQUIRE_NOTHROW(engine_->loadScript(std::filesystem::current_path() / "tests" / "module.js"));
+}
+
+
+class TestForm {
+public:
+    using Callback = std::function<void(int)>;
+    Callback cb_;
+
+    TestForm() = default;
+
+    void setCallback(Callback cb) { cb_ = std::move(cb); }
+
+    void call(int val) {
+        if (cb_) {
+            cb_(val);
+        }
+    }
+};
+
+qjspp::ClassDefine TestFormDefine = qjspp::defineClass<TestForm>("TestForm")
+                                        .constructor<>()
+                                        .instanceMethod("setCallback", &TestForm::setCallback)
+                                        .instanceMethod("call", &TestForm::call)
+                                        .build();
+
+TEST_CASE_METHOD(TestEngineFixture, "Test Callback") {
+    qjspp::JsScope scope{engine_};
+
+    engine_->registerNativeClass(TestFormDefine);
+    engine_->globalThis().set("assert", qjspp::Function{[](qjspp::Arguments const& args) -> qjspp::Value {
+                                  REQUIRE(args.length() == 1);
+                                  REQUIRE(args[0].isBoolean());
+                                  REQUIRE(args[0].asBoolean().value() == true);
+                                  return {};
+                              }});
+
+    engine_->eval(R"(
+        let fm = new TestForm();
+        fm.setCallback((val) => {
+            assert(val == 114514);
+        });
+        fm.call(114514);
+    )");
 }

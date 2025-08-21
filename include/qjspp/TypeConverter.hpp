@@ -1,6 +1,7 @@
 #pragma once
 #include "qjspp/Concepts.hpp"
 #include "qjspp/Values.hpp"
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 
@@ -41,13 +42,23 @@ struct TypeConverter<T> {
 };
 
 
-// enum -> JsNumber (enum value)
+// enum -> Number (enum value)
 template <typename T>
     requires std::is_enum_v<T>
 struct TypeConverter<T> {
     static Number toJs(T value) { return Number(static_cast<int>(value)); }
 
     static T toCpp(Value const& value) { return static_cast<T>(value.asNumber().getInt32()); }
+};
+
+template <typename R, typename... Args>
+struct TypeConverter<std::function<R(Args...)>> {
+    static Value toJs(std::function<R(Args...)> const& /* value */) {
+        // ! UnSupported: cannot convert function to Value
+        throw std::logic_error("Cannot convert std::function to Value.");
+    }
+
+    static std::function<R(Args...)> toCpp(Value const& value); // impl in Binding.inl
 };
 
 

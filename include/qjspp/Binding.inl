@@ -2,13 +2,15 @@
 #include "Binding.hpp"
 #include "qjspp/Concepts.hpp"
 #include "qjspp/JsException.hpp"
+#include "qjspp/JsScope.hpp"
 #include "qjspp/TypeConverter.hpp"
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
+#include <array>
 
+namespace qjspp {
 
-namespace qjspp::internal {
-
+namespace internal {
 
 // Primary template: redirect to operator()
 template <typename T>
@@ -59,10 +61,38 @@ using ArgNType = std::tuple_element_t<N, typename DecayedFunctionTraits<T>::Args
 template <typename T>
 using ArgType_t = ArgNType<T, 0>;
 
+} // namespace internal
+
+
+// Function -> std::function
+template <typename R, typename... Args>
+inline decltype(auto) WrapCallback(Value const& value) {
+    if (!value.isFunction()) {
+        throw JsException("expected function");
+    }
+    auto engine = JsScope::currentEngine();
+    return [engine, fn = value.asFunction()](Args&&... args) -> R {
+        JsScope lock{engine};
+
+        std::array<Value, sizeof...(Args)> argv{ConvertToJs(std::forward<Args>(args))...};
+        if constexpr (std::is_void_v<R>) {
+            fn.call(Undefined{}, argv);
+        } else {
+            return ConvertToCpp<R>(fn.call(Undefined{}, argv));
+        }
+    };
+}
+template <typename R, typename... Args>
+std::function<R(Args...)> TypeConverter<std::function<R(Args...)>>::toCpp(Value const& value) {
+    return WrapCallback<R, Args...>(value);
+}
+
+
+namespace internal {
 
 // 转换参数类型
 template <typename Tuple, std::size_t... Is>
-decltype(auto) ConvertArgsToTuple(Arguments const& args, std::index_sequence<Is...>) {
+inline decltype(auto) ConvertArgsToTuple(Arguments const& args, std::index_sequence<Is...>) {
     return std::make_tuple(ConvertToCpp<std::tuple_element_t<Is, Tuple>>(args[Is])...);
 }
 
@@ -243,5 +273,6 @@ std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(T
     }
 }
 
+} // namespace internal
 
-} // namespace qjspp::internal
+} // namespace qjspp
