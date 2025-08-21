@@ -233,7 +233,7 @@ InstanceMethodCallback bindInstanceMethod(Func&& fn) {
 
 template <typename C, typename... Func>
 InstanceMethodCallback bindInstanceOverloadedMethod(Func&&... funcs) {
-    std::vector functions = {bindInstanceMethod(std::forward<Func>(funcs))...};
+    std::vector functions = {bindInstanceMethod<C>(std::forward<Func>(funcs))...};
     return [fs = std::move(functions)](void* inst, Arguments const& args) -> Value {
         for (size_t i = 0; i < sizeof...(Func); ++i) {
             try {
