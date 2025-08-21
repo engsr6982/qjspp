@@ -7,6 +7,7 @@
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
 #include <array>
+#include <cassert>
 
 namespace qjspp {
 
@@ -219,7 +220,13 @@ InstanceMethodCallback bindInstanceMethod(Func&& fn) {
                 },
                 ConvertArgsToTuple<Tuple>(args, std::make_index_sequence<N>())
             );
-            return ConvertToJs(ret);
+            // 特殊情况，对于 Builder 模式，返回 this
+            if constexpr (std::is_same_v<R, C&>) {
+                assert(args.hasThiz() && "this is required for Builder pattern");
+                return args.thiz();
+            } else {
+                return ConvertToJs(ret);
+            }
         }
     };
 }
