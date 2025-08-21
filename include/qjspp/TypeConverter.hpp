@@ -23,13 +23,28 @@ struct TypeConverter<bool> {
 };
 
 
-// int/uint/float/double → JsNumber
+// int/uint/float/double → Number
 template <typename T>
     requires(NumberLike_v<T> || IsInt64OrUint64_v<T>)
 struct TypeConverter<T> {
     static Number toJs(T value) { return Number(value); }
 
     static T toCpp(Value const& value) { return static_cast<T>(value.asNumber().getDouble()); }
+};
+
+// int64/uint64 → BigInt
+template <typename T>
+    requires IsInt64OrUint64_v<T>
+struct TypeConverter<T> {
+    static BigInt toJs(T value) { return BigInt(value); }
+
+    static T toCpp(Value const& value) {
+        if constexpr (IsInt64_v<T>) {
+            return value.asBigInt().getInt64();
+        } else {
+            return value.asBigInt().getUInt64();
+        }
+    }
 };
 
 
@@ -125,13 +140,82 @@ template <typename T>
     return internal::TypedConverter<T>::toJs(std::forward<T>(value)).asValue();
 }
 
+
+namespace detail_conv {
+
+// 获取 TypedConverter 的 toCpp 返回类型（去掉引用/const）
+template <typename T>
+using TC = internal::TypedConverter<std::remove_cv_t<std::remove_reference_t<T>>>;
+
+// 返回类型
+template <typename T>
+using TypedToCppRet = decltype(TC<T>::toCpp(std::declval<Value>()));
+
+// helper: 是否是 U*
+template <typename X>
+inline constexpr bool is_pointer_v = std::is_pointer_v<std::remove_cv_t<std::remove_reference_t<X>>>;
+
+// helper: 是否是 U&
+template <typename X>
+inline constexpr bool is_lvalue_ref_v = std::is_lvalue_reference_v<X>;
+
+} // namespace detail_conv
+
+
 template <typename T>
 [[nodiscard]] inline decltype(auto) ConvertToCpp(Value const& value) {
     static_assert(
         internal::IsTypeConverterAvailable_v<T>,
         "Cannot convert Js to T; there is no available TypeConverter."
     );
-    return internal::TypedConverter<T>::toCpp(value);
+
+    using RequestedT = T;                                                     // 可能为 U, U&, U*
+    using BareT      = std::remove_cv_t<std::remove_reference_t<RequestedT>>; // U
+
+    using Conv    = detail_conv::TC<RequestedT>;            // TypedConverter<U>
+    using ConvRet = detail_conv::TypedToCppRet<RequestedT>; // decltype(Conv::toCpp(Value))
+
+    if constexpr (std::is_lvalue_reference_v<RequestedT>) { // 需要 U&
+        if constexpr (std::is_pointer_v<std::remove_reference_t<ConvRet>>) {
+            auto p = Conv::toCpp(value); // 返回 U*
+            if (!p) return nullptr;
+            return *p;
+        } else if constexpr (std::is_lvalue_reference_v<ConvRet>
+                             || std::is_const_v<std::remove_reference_t<RequestedT>>) {
+            return Conv::toCpp(value); // 已返回 U&，直接转发 或者 const T& 可以绑定临时
+        } else {
+            static_assert(
+                std::is_pointer_v<std::remove_reference_t<ConvRet>> || std::is_lvalue_reference_v<ConvRet>,
+                "TypeConverter::toCpp must return either U* or U& when ConvertToCpp<T&> is required. Returning U (by "
+                "value) cannot bind to a non-const lvalue reference; change TypeConverter or request a value type."
+            );
+        }
+    } else if constexpr (std::is_pointer_v<RequestedT>) { // 需要 U*
+        if constexpr (std::is_pointer_v<std::remove_reference_t<ConvRet>>) {
+            return Conv::toCpp(value); // 直接返回
+        } else if constexpr (std::is_lvalue_reference_v<ConvRet>) {
+            return std::addressof(Conv::toCpp(value)); // 返回 U& -> 可以取地址
+        } else {
+            static_assert(
+                std::is_pointer_v<std::remove_reference_t<ConvRet>> || std::is_lvalue_reference_v<ConvRet>,
+                "TypeConverter::toCpp must return U* or U& when ConvertToCpp<U*> is required. "
+                "Returning U (by value) would produce pointer to temporary (unsafe)."
+            );
+        }
+    } else {
+        // 值类型 U
+        if constexpr (std::is_same_v<std::remove_cv_t<std::remove_reference_t<ConvRet>>, BareT>
+                      && !std::is_pointer_v<std::remove_reference_t<ConvRet>> && !std::is_lvalue_reference_v<ConvRet>) {
+            return Conv::toCpp(value); // 按值返回 / 直接返回 (可能 NRVO)
+        } else {
+            static_assert(
+                std::is_same_v<std::remove_cv_t<std::remove_reference_t<ConvRet>>, BareT>
+                    && !std::is_pointer_v<std::remove_reference_t<ConvRet>> && !std::is_lvalue_reference_v<ConvRet>,
+                "TypeConverter::toCpp must return U (by value) for ConvertToCpp<U>. "
+                "Other return forms (U* or U&) are not supported for value request."
+            );
+        }
+    }
 }
 
 
