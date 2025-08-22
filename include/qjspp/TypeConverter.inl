@@ -171,6 +171,19 @@ struct TypeConverter<std::variant<Is...>> {
     }
 };
 
+template <>
+struct TypeConverter<std::monostate> {
+    static Value toJs(std::monostate) { return Null{}; }
+
+    static std::monostate toCpp(Value const& value) {
+        if (value.isUndefined() || value.isNull()) {
+            return std::monostate{};
+        }
+        throw JsException{"Expected null/undefined for std::monostate"};
+    }
+};
+
+
 // internal type
 template <typename T>
     requires IsWrappedType<T>
