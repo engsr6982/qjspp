@@ -229,6 +229,14 @@ public:
     }
 };
 
+
+qjspp::Value jsassert(qjspp::Arguments const& args) {
+    REQUIRE(args.length() == 1);
+    REQUIRE(args[0].isBoolean());
+    REQUIRE(args[0].asBoolean().value() == true);
+    return {};
+}
+
 qjspp::ClassDefine TestFormDefine = qjspp::defineClass<TestForm>("TestForm")
                                         .constructor<>()
                                         .instanceMethod("setCallback", &TestForm::setCallback)
@@ -239,12 +247,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Test Callback") {
     qjspp::JsScope scope{engine_};
 
     engine_->registerNativeClass(TestFormDefine);
-    engine_->globalThis().set("assert", qjspp::Function{[](qjspp::Arguments const& args) -> qjspp::Value {
-                                  REQUIRE(args.length() == 1);
-                                  REQUIRE(args[0].isBoolean());
-                                  REQUIRE(args[0].asBoolean().value() == true);
-                                  return {};
-                              }});
+    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
 
     engine_->eval(R"(
         let fm = new TestForm();
@@ -253,4 +256,41 @@ TEST_CASE_METHOD(TestEngineFixture, "Test Callback") {
         });
         fm.call(114514);
     )");
+}
+
+
+class AbstractFoo {
+public:
+    AbstractFoo() = default;
+
+    virtual std::string foo() = 0;
+};
+
+qjspp::ClassDefine AbstractFooDef = qjspp::defineClass<AbstractFoo>("AbstractFoo")
+                                        .disableConstructor()
+                                        .instanceMethod("foo", &AbstractFoo::foo)
+                                        .build();
+
+class FooImpl : public AbstractFoo {
+public:
+    std::string foo() override { return "foo"; }
+};
+
+TEST_CASE_METHOD(TestEngineFixture, "Abstract Class") {
+    qjspp::JsScope scope{engine_};
+
+    auto impl = std::make_shared<FooImpl>();
+
+    engine_->registerNativeClass(AbstractFooDef);
+    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+    engine_->globalThis().set("getAbstractFoo", qjspp::Function{[impl](qjspp::Arguments const& args) -> qjspp::Value {
+                                  REQUIRE(args.length() == 0);
+                                  auto i = impl;
+                                  return args.engine()->newInstanceOfShared(AbstractFooDef, std::move(i));
+                              }});
+
+    REQUIRE_NOTHROW(engine_->eval(R"(
+        let foo = getAbstractFoo();
+        assert(foo.foo() == "foo");
+    )"));
 }
