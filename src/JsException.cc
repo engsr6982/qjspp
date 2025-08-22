@@ -7,6 +7,11 @@
 
 namespace qjspp {
 
+struct JsException::ExceptionContext {
+    Type                type_{Type::Any};
+    mutable std::string message_{};
+    Value               exception_{};
+};
 
 JsException::JsException(std::string message, Type type) : qjspp::JsException{type, std::move(message)} {}
 JsException::JsException(Type type, std::string message)

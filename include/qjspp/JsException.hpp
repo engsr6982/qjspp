@@ -1,5 +1,5 @@
 #pragma once
-#include "qjspp/Values.hpp"
+#include "qjspp/Types.hpp"
 #include <exception>
 #include <memory>
 #include <string>
@@ -48,12 +48,7 @@ public:
 private:
     void extractMessage() const noexcept;
 
-    struct ExceptionContext {
-        Type                type_{Type::Any};
-        mutable std::string message_{};
-        Value               exception_{};
-    };
-
+    struct ExceptionContext;
     std::shared_ptr<ExceptionContext> data_{nullptr};
 };
 
