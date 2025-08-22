@@ -91,7 +91,7 @@ public:
      * @note qjspp 不接管实例的生命周期，对子资源增加引用计数关联生命周期(常见于对类成员创建Js实例，防止主实例 GC)
      */
     template <typename T>
-    Object newInstanceOfView(ClassDefine const& def, T* instance, Object const& ownerJs);
+    Object newInstanceOfView(ClassDefine const& def, T* instance, Object ownerJs);
 
     /**
      * 创建一个新的 JavaScript 类实例

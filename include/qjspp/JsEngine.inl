@@ -33,11 +33,11 @@ Object JsEngine::newInstanceOfView(ClassDefine const& def, T* instance) {
 }
 
 template <typename T>
-Object JsEngine::newInstanceOfView(ClassDefine const& def, T* instance, Object const& ownerJs) {
+Object JsEngine::newInstanceOfView(ClassDefine const& def, T* instance, Object ownerJs) {
     struct Control {
         Object ownerJsInst;
         void*  nativeInst{nullptr};
-        explicit Control(Object&& ownerJs, void* instance) : ownerJsInst(std::move(ownerJs)), nativeInst(instance) {}
+        explicit Control(Object ownerJs, void* instance) : ownerJsInst(std::move(ownerJs)), nativeInst(instance) {}
         ~Control() { ownerJsInst.reset(); }
     };
     auto control = new Control{ownerJs, instance};
