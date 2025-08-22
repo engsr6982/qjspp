@@ -294,3 +294,37 @@ TEST_CASE_METHOD(TestEngineFixture, "Abstract Class") {
         assert(foo.foo() == "foo");
     )"));
 }
+
+
+class Builder {
+public:
+    std::ostringstream str_;
+
+    Builder() = default;
+
+    Builder& append(std::string const& str) {
+        str_ << str;
+        return *this;
+    }
+
+    std::string build() const { return str_.str(); }
+};
+
+qjspp::ClassDefine BuilderDefine = qjspp::defineClass<Builder>("Builder")
+                                       .constructor<>()
+                                       .instanceMethod("append", &Builder::append)
+                                       .instanceMethod("build", &Builder::build)
+                                       .build();
+
+TEST_CASE_METHOD(TestEngineFixture, "Builder Pattern") {
+    qjspp::JsScope scope{engine_};
+
+    engine_->registerNativeClass(BuilderDefine);
+    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+
+    REQUIRE_NOTHROW(engine_->eval(R"(
+        let builder = new Builder();
+        let str = builder.append("Hello").append(" World").build();
+        assert(str == "Hello World");
+    )"));
+}
