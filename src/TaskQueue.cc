@@ -13,7 +13,10 @@ TaskQueue::Task::Task(TaskCallback cb, void* d, std::chrono::steady_clock::time_
 bool TaskQueue::Task::operator>(const Task& other) const { return dueTime_ > other.dueTime_; }
 
 TaskQueue::TaskQueue() : shutdown_(false) {}
-TaskQueue::~TaskQueue() { shutdown(true); }
+TaskQueue::~TaskQueue() {
+    shutdown(true);
+    loopAndWait(); // 等待所有任务完成
+}
 
 
 void TaskQueue::postTask(TaskCallback callback, void* data, int delayMs) {
