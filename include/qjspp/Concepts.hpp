@@ -21,9 +21,7 @@ template <typename T>
 concept NumberLike_v = std::is_arithmetic_v<T> && !IsInt64OrUint64_v<T>;
 
 template <typename T>
-concept StringLike_v = requires(const T& s) {
-    { std::basic_string_view(s) } -> std::convertible_to<std::string_view>;
-} || std::is_same_v<std::remove_cvref_t<T>, std::string>;
+concept StringLike_v = std::convertible_to<T, std::string_view> || std::same_as<std::remove_cvref_t<T>, std::string>;
 
 template <typename T>
 concept HasDefaultConstructor_v = requires {
