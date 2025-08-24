@@ -1,6 +1,7 @@
 #pragma once
 #include "Binding.hpp"
 #include "qjspp/Concepts.hpp"
+#include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
 #include "qjspp/TypeConverter.hpp"
@@ -120,12 +121,15 @@ inline decltype(auto) WrapCallback(Value const& value) {
     auto engine = JsScope::currentEngine();
     return [engine, fn = value.asFunction()](Args&&... args) -> R {
         JsScope lock{engine};
-
-        std::array<Value, sizeof...(Args)> argv{ConvertToJs(std::forward<Args>(args))...};
-        if constexpr (std::is_void_v<R>) {
-            fn.call(Undefined{}, argv);
-        } else {
-            return ConvertToCpp<R>(fn.call(Undefined{}, argv));
+        try {
+            std::array<Value, sizeof...(Args)> argv{ConvertToJs(std::forward<Args>(args))...};
+            if constexpr (std::is_void_v<R>) {
+                fn.call(Undefined{}, argv);
+            } else {
+                return ConvertToCpp<R>(fn.call(Undefined{}, argv));
+            }
+        } catch (JsException const& e) {
+            engine->invokeUnhandledJsExceptionCallback(e, UnhandledExceptionOrigin::Callback);
         }
     };
 }

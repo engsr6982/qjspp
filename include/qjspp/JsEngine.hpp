@@ -1,6 +1,5 @@
 #pragma once
 #include "Global.hpp"
-#include "qjspp/Binding.hpp"
 #include "qjspp/Concepts.hpp"
 #include "qjspp/TaskQueue.hpp"
 #include "qjspp/Types.hpp"
@@ -11,10 +10,11 @@
 #include <mutex>
 #include <string_view>
 #include <unordered_map>
-#include <unordered_set>
 
 
 namespace qjspp {
+
+struct WrappedResource;
 
 
 class JsEngine final {
@@ -122,6 +122,13 @@ public:
     template <typename T>
     [[nodiscard]] inline T* getNativeInstanceOf(Object const& obj, ClassDefine const& def) const;
 
+
+    using UnhandledJsExceptionCallback =
+        void (*)(JsEngine* engine, JsException const& exception, UnhandledExceptionOrigin origin);
+
+    void setUnhandledJsExceptionCallback(UnhandledJsExceptionCallback cb);
+    void invokeUnhandledJsExceptionCallback(JsException const& exception, UnhandledExceptionOrigin origin);
+
 private:
     using RawFunctionCallback = Value (*)(const Arguments&, void*, void*, bool constructCall);
     Object   createJavaScriptClassOf(ClassDefine const& def);
@@ -141,6 +148,8 @@ private:
     std::unique_ptr<TaskQueue>   queue_{nullptr};    // 任务队列
     mutable std::recursive_mutex mutex_;             // 线程安全互斥量
     JSAtom                       lengthAtom_ = {};   // for Array
+
+    UnhandledJsExceptionCallback unhandledJsExceptionCallback_{nullptr};
 
     std::unordered_map<ClassDefine const*, Object>                      nativeStaticClasses_;   // {def, obj}
     std::unordered_map<ClassDefine const*, std::pair<JSValue, JSValue>> nativeInstanceClasses_; // {ctor, proto}

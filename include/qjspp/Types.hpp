@@ -68,6 +68,10 @@ inline int toQuickJSFlags(PropertyAttributes attr) {
     return flags;
 }
 
+enum class UnhandledExceptionOrigin {
+    Unknown = 0, // 未知
+    Callback,    // 回调函数
+};
 
 } // namespace qjspp
 
