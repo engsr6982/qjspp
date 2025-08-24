@@ -156,11 +156,10 @@ private:
     std::unordered_map<std::string, ModuleDefine const*>                nativeModules_;         // {name, def} (懒加载)
     std::unordered_map<JSModuleDef*, ModuleDefine const*>               loadedModules_;         // {module, def}
 
-#define QJSPP_ENABLE_INSTANCE_CALL_CHECK_CLASS_DEFINE
-#ifdef QJSPP_ENABLE_INSTANCE_CALL_CHECK_CLASS_DEFINE
+#ifndef QJSPP_SKIP_INSTANCE_CALL_CHECK_CLASS_DEFINE
     static constexpr bool kInstanceCallCheckClassDefine = true;
 #else
-    static constexpr bool kInstanceCallCheckClassDefine = false;
+    static constexpr bool kInstanceCallCheckClassDefine = false; // 跳过实例调用时检查类定义
 #endif
 
     // helpers

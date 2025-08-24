@@ -32,15 +32,19 @@ struct TypeConverter<T> {
 template <typename T>
     requires IsInt64OrUint64_v<T>
 struct TypeConverter<T> {
+#ifndef QJSPP_INT64_OR_UINT64_ALWAYS_USE_NUMBER_OF_BIGINT_IN_TYPE_CONVERTER
     static BigInt toJs(T value) { return BigInt(value); }
-
-    static T toCpp(Value const& value) {
+    static T      toCpp(Value const& value) {
         if constexpr (IsInt64_v<T>) {
             return value.asBigInt().getInt64();
         } else {
             return value.asBigInt().getUInt64();
         }
     }
+#else
+    static Number toJs(T value) { return Number(static_cast<int>(value)); }
+    static T      toCpp(Value const& value) { return static_cast<T>(value.asNumber().getInt32()); }
+#endif
 };
 
 // std::string <-> String
