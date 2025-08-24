@@ -244,13 +244,14 @@ template <typename T>
         }
     } else {
         // 值类型 U
-        if constexpr (std::is_same_v<std::remove_cv_t<std::remove_reference_t<ConvRet>>, BareT>
+        using RawConvRet = std::remove_cv_t<std::remove_reference_t<ConvRet>>;
+        if constexpr ((std::is_same_v<RawConvRet, BareT> || detail_conv::CppValueTypeTransformer_v<RawConvRet, BareT>)
                       && !std::is_pointer_v<std::remove_reference_t<ConvRet>> && !std::is_lvalue_reference_v<ConvRet>) {
             return Conv::toCpp(value); // 按值返回 / 直接返回 (可能 NRVO)
         } else {
             static_assert(
-                std::is_same_v<std::remove_cv_t<std::remove_reference_t<ConvRet>>, BareT>
-                    && !std::is_pointer_v<std::remove_reference_t<ConvRet>> && !std::is_lvalue_reference_v<ConvRet>,
+                std::is_same_v<RawConvRet, BareT> && !std::is_pointer_v<std::remove_reference_t<ConvRet>>
+                    && !std::is_lvalue_reference_v<ConvRet>,
                 "TypeConverter::toCpp must return U (by value) for ConvertToCpp<U>. "
                 "Other return forms (U* or U&) are not supported for value request."
             );

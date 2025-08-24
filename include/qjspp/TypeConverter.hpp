@@ -1,6 +1,7 @@
 #pragma once
 #include "qjspp/Types.hpp"
 #include <stdexcept>
+#include <string_view>
 #include <type_traits>
 
 
@@ -94,6 +95,28 @@ inline constexpr bool is_pointer_v = std::is_pointer_v<std::remove_cv_t<std::rem
 // helper: 是否是 U&
 template <typename X>
 inline constexpr bool is_lvalue_ref_v = std::is_lvalue_reference_v<X>;
+
+
+/**
+ * @brief C++ 值类型转换器
+ * @note 此转换器设计目的是对于某些特殊情况，例如 void foo(std::string_view)
+ *       在绑定时，TypeConverter 对字符串的特化是接受 StringLike_v，但返回值统一为 std::string
+ *       这种特殊情况下，会导致 ConvertToCpp<std::tring_view> 内部类型断言失败:
+ * @code using RawConvRet = std::remove_cv_t<std::remove_reference_t<TypedToCppRet<std::string_view>>> // std::string
+ * @code std::same_v<RawConvRet, std::string_view> // false
+ *
+ * @note 为了解决此问题，引入了 CppValueTypeTransformer，用于放宽类型约束
+ * @note 需要注意的是 CppValueTypeTransformer 仅放宽了类型约束，实际依然需要特化 TypeConverter<T>
+ */
+template <typename From, typename To>
+struct CppValueTypeTransformer : std::false_type {};
+
+template <>
+struct CppValueTypeTransformer<std::string, std::string_view> : std::true_type {};
+
+template <typename From, typename To>
+inline constexpr bool CppValueTypeTransformer_v = CppValueTypeTransformer<From, To>::value;
+
 
 } // namespace detail_conv
 
