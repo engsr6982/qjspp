@@ -1,6 +1,7 @@
 #pragma once
 #include "Binding.hpp"
 #include "qjspp/Concepts.hpp"
+#include "qjspp/Global.hpp"
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
@@ -10,7 +11,9 @@
 #include <array>
 #include <cassert>
 #include <functional>
+#include <stdexcept>
 #include <type_traits>
+#include <utility>
 
 
 namespace qjspp {
@@ -119,17 +122,48 @@ inline decltype(auto) WrapCallback(Value const& value) {
         throw JsException("expected function");
     }
     auto engine = JsScope::currentEngine();
-    return [engine, fn = value.asFunction()](Args&&... args) -> R {
-        JsScope lock{engine};
+
+    struct ScopedDestructor {
+        JsEngine* engine_{nullptr};
+        Value     value_{};
+        ~ScopedDestructor() {
+            if (value_) {
+                assert(engine_ != nullptr);
+                JsScope lock{engine_};
+                value_.reset();
+            }
+        }
+    };
+
+    auto scoped = ScopedDestructor{engine, value};
+    return [res = std::move(scoped)](Args&&... args) -> R {
+        JsScope lock{res.engine_};
         try {
             std::array<Value, sizeof...(Args)> argv{ConvertToJs(std::forward<Args>(args))...};
             if constexpr (std::is_void_v<R>) {
-                fn.call(Undefined{}, argv);
+                res.value_.asFunction().call(Undefined{}, argv);
             } else {
-                return ConvertToCpp<R>(fn.call(Undefined{}, argv));
+                return ConvertToCpp<R>(res.value_.asFunction().call(Undefined{}, argv));
             }
         } catch (JsException const& e) {
-            engine->invokeUnhandledJsExceptionCallback(e, UnhandledExceptionOrigin::Callback);
+#ifndef QJSPP_CALLBACK_ALWAYS_THROW_IF_NEED_RETURN_VALUE
+            if constexpr (std::is_void_v<R> || std::is_default_constructible_v<R>) {
+                res.engine_->invokeUnhandledJsExceptionCallback(e, UnhandledExceptionOrigin::Callback);
+                if constexpr (!std::is_void_v<R>) return R{};
+            } else {
+                throw std::runtime_error{
+                    "unhandled js exception in callback, qjspp cannot handle the callback return value!"
+                };
+            }
+#else
+            if constexpr (std::is_void_v<R>) {
+                res.engine_->invokeUnhandledJsExceptionCallback(e, UnhandledExceptionOrigin::Callback);
+            } else {
+                throw std::runtime_error{
+                    "unhandled js exception in callback, qjspp cannot handle the callback return value!"
+                };
+            }
+#endif
         }
     };
 }
