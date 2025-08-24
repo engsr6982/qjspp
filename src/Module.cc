@@ -1,6 +1,7 @@
+#include "qjspp/Module.hpp"
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
-#include "qjspp/Module.hpp"
+#include "qjspp/Values.hpp"
 #include "quickjs.h"
 #include <algorithm>
 #include <cassert>
@@ -50,11 +51,11 @@ JSModuleDef* ModuleDefine::init(JsEngine* engine) const {
 
         for (auto& clsDef : mdef->class_) {
             // 2.1) 检查类别并尝试查表，不存在进行注册
-            Object ctor;
+            Value ctor;
             if (clsDef->hasInstanceConstructor()) {
                 auto iter = engine->nativeInstanceClasses_.find(clsDef);
                 if (iter != engine->nativeInstanceClasses_.end()) {
-                    ctor = Value::wrap<Object>(iter->second.first);
+                    ctor = Value::wrap<Value>(iter->second.first);
                 }
             } else {
                 auto iter = engine->nativeStaticClasses_.find(clsDef);
