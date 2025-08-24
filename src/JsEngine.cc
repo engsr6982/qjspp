@@ -6,11 +6,11 @@
 #include "qjspp/TaskQueue.hpp"
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
-#include "quickjs.h"
 #include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <mutex>
@@ -31,10 +31,11 @@ void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
     auto opaque = JS_GetOpaque(val, classID);
     if (opaque) {
         auto wrapped = static_cast<WrappedResource*>(opaque);
-        // 校验类ID是否匹配
-        assert(wrapped->define_->instanceDefine_.classId_ == classID);
+        assert(wrapped->define_->instanceDefine_.classId_ == classID); // 校验类ID是否匹配
+        auto engine = const_cast<JsEngine*>(wrapped->engine_);
 
-        PauseGc pauseGc(const_cast<JsEngine*>(wrapped->engine_));
+        PauseGc pauseGc(engine); // 暂停GC
+        JsScope lock(engine);    // 同步线程析构
         delete wrapped;
     }
 }
@@ -260,28 +261,35 @@ Value JsEngine::loadScript(std::filesystem::path const& path, bool main) {
         throw JsException{"Failed to open file: " + path.string()};
     }
     std::string code((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-    auto        pathStr = path.string();
+
+    auto url = path.is_absolute() ? path.string() : std::filesystem::absolute(path).string();
 #ifdef _WIN32
-    std::replace(pathStr.begin(), pathStr.end(), '\\', '/');
+    std::replace(url.begin(), url.end(), '\\', '/');
 #endif
 
-    auto result = JS_Eval(context_, code.c_str(), code.size(), pathStr.c_str(), JS_EVAL_TYPE_MODULE);
-    JsException::check(result); // check SyntaxError
-    if (main) {
-        assert(JS_VALUE_GET_TAG(result) == JS_TAG_MODULE);
-        auto module = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
-        kUpdateModuleMainFlag(context_, module, main);
-    }
+    // 1) 编译模块
+    auto result =
+        JS_Eval(context_, code.c_str(), code.size(), url.c_str(), JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+    JsException::check(result); // SyntaxError
 
-    // module return rejected promise
+    // 2) 设置模块元数据
+    assert(JS_VALUE_GET_TAG(result) == JS_TAG_MODULE);
+    auto module = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
+    kUpdateModuleMainFlag(context_, module, main);
+
+    // 3) 执行模块
+    result = JS_EvalFunction(context_, result);
+    JsException::check(result); // SyntaxError
+
+    // 4) 检查模块是否返回 rejected promise
     JSPromiseStateEnum state = JS_PromiseState(context_, result);
     if (state == JSPromiseStateEnum::JS_PROMISE_REJECTED) {
         JSValue msg = JS_PromiseResult(context_, result);
-        JsException::check(msg);
-        JS_FreeValue(context_, msg);
+        JS_Throw(context_, msg);
+        JsException::check(-1);
     }
-    pumpJobs();
 
+    pumpJobs();
     return Value::move<Value>(result);
 }
 
@@ -292,36 +300,38 @@ void JsEngine::loadByteCode(std::filesystem::path const& path, bool main) {
     }
     std::vector<uint8_t> bytecode((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
 
+    // 1) 读取字节码
     JSValue result = JS_ReadObject(context_, bytecode.data(), bytecode.size(), JS_READ_OBJ_BYTECODE);
-    JsException::check(result);
+    JsException::check(result); // SyntaxError
 
+    // 2) 设置模块元数据
     if (JS_VALUE_GET_TAG(result) == JS_TAG_MODULE) {
         if (JS_ResolveModule(context_, result) < 0) {
             JS_FreeValue(context_, result);
             JsException::check(-1, "Failed to resolve module");
         }
-        auto url = path.string();
+        auto url = path.is_absolute() ? path.string() : std::filesystem::absolute(path).string();
 #ifdef _WIN32
         std::replace(url.begin(), url.end(), '\\', '/');
 #endif
-        url = std::string{FilePrefix} + url;
-        assert(JS_VALUE_GET_TAG(result) == JS_TAG_MODULE);
+        url         = std::string{FilePrefix} + url;
         auto module = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
         kUpdateModuleMeta(context_, module, url, main);
     }
 
-    JSValue ret = JS_EvalFunction(context_, result);
-    // module return rejected promise
-    JSPromiseStateEnum state = JS_PromiseState(context_, ret);
+    // 3) 执行模块
+    result = JS_EvalFunction(context_, result);
+    JsException::check(result); // SyntaxError
+
+    // 4) 检查模块是否返回 rejected promise
+    JSPromiseStateEnum state = JS_PromiseState(context_, result);
     if (state == JSPromiseStateEnum::JS_PROMISE_REJECTED) {
-        JSValue msg = JS_PromiseResult(context_, ret);
-        JsException::check(msg);
-        JS_FreeValue(context_, msg);
+        JSValue msg = JS_PromiseResult(context_, result);
+        JS_Throw(context_, msg);
+        JsException::check(-1);
     }
 
-    JsException::check(ret);
-    JS_FreeValue(context_, ret);
-
+    JS_FreeValue(context_, result);
     pumpJobs();
 }
 
