@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string_view>
+#include <utility>
 
 
 namespace qjspp {
@@ -430,6 +431,40 @@ Value Function::call() const { return call(Value{}, {}); }
 
 #undef IMPL_SPECIALIZE_RAII
 #undef IMPL_SPECIALIZE_COPY_AND_MOVE
+
+
+ScopedValue::ScopedValue(Value value) {
+    val_    = std::move(value);
+    engine_ = &JsScope::currentEngineChecked();
+}
+ScopedValue::ScopedValue(JsEngine* engine, Value val) : engine_(engine), val_(std::move(val)) {}
+ScopedValue::ScopedValue(ScopedValue&& other) noexcept {
+    engine_ = other.engine_;
+    val_    = std::move(other.val_);
+}
+ScopedValue& ScopedValue::operator=(ScopedValue&& other) noexcept {
+    engine_ = other.engine_;
+    val_    = std::move(other.val_);
+    return *this;
+}
+ScopedValue::ScopedValue(ScopedValue const& copy) {
+    engine_ = copy.engine_;
+    val_    = copy.val_;
+}
+ScopedValue& ScopedValue::operator=(ScopedValue const& copy) = default;
+ScopedValue::~ScopedValue() { reset(); }
+void ScopedValue::reset() {
+    if (val_) {
+        JsScope lock{engine_};
+        val_.reset();
+    }
+}
+JsEngine*    ScopedValue::engine() const { return engine_; }
+Value        ScopedValue::value() const { return val_; }
+ScopedValue::operator Value() const {
+    JsScope lock{engine_};
+    return val_;
+}
 
 
 Arguments::Arguments(JsEngine* engine, JSValueConst thiz, int length, JSValueConst* args)

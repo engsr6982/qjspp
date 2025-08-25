@@ -2,6 +2,7 @@
 #include "qjspp/Concepts.hpp"
 #include "qjspp/Global.hpp"
 #include "qjspp/Types.hpp"
+#include "quickjs.h"
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -79,6 +80,11 @@ public:                                                                         
     SPECIALIZE_FRIEND()
 
 
+/**
+ * @note JSValue 的封装类
+ * @note 注意：每个 Value 都有一个引用计数，Value 内部使用 RAII 管理引用计数
+ * @note 注意：Value 析构时栈上需要有活动的 JsScope，否则会抛出 logic_error
+ */
 class Value final {
     SPECIALIZE_ALL(Value);
 
@@ -285,6 +291,40 @@ public:
 #undef SPECIALIZE_RAII
 #undef SPECIALIZE_FRIEND
 #undef SPECIALIZE_NON_VALUE
+
+
+/**
+ * @note 带作用域的值
+ * @note 此类为了解决持有 Value 时析构需要 JsScope 的问题
+ * @note 在析构时，会自动在栈上创建 JsScope 保证 Value 安全析构
+ */
+class ScopedValue final {
+    JsEngine* engine_{nullptr};
+    Value     val_{};
+
+public:
+    QJSPP_DISALLOW_NEW();
+
+    ScopedValue() = default;
+    ScopedValue(Value value); // need active JsScope
+    explicit ScopedValue(JsEngine* engine, Value val);
+
+    ScopedValue(ScopedValue&& other) noexcept;
+    ScopedValue& operator=(ScopedValue&& other) noexcept;
+
+    ScopedValue(ScopedValue const& copy);
+    ScopedValue& operator=(ScopedValue const& copy);
+
+    ~ScopedValue();
+
+    void reset(); // reset engine and value
+
+    [[nodiscard]] JsEngine* engine() const;
+
+    [[nodiscard]] Value value() const;
+
+    [[nodiscard]] operator Value() const;
+};
 
 
 class Arguments final {
