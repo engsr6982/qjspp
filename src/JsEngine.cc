@@ -542,6 +542,15 @@ Object JsEngine::createConstructor(ClassDefine const& def) {
     JsException::check(JS_SetConstructorBit(context_, obj, true));
     return Value::move<Object>(obj);
 }
+bool ClassDefineCheckHelper(ClassDefine const* def, ClassDefine const* target) {
+    while (def) {
+        if (def == target) {
+            return true;
+        }
+        def = def->extends_;
+    }
+    return false;
+}
 Object JsEngine::createPrototype(ClassDefine const& def) {
     auto prototype = Object{};
     auto defPtr    = const_cast<ClassDefine*>(&def);
@@ -557,7 +566,8 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                 if (thiz == nullptr) {
                     return Null{};
                 }
-                if (kInstanceCallCheckClassDefine && typed->define_ != data2 && typed->define_->extends_ != data2) {
+                if (kInstanceCallCheckClassDefine
+                    && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
                     throw JsException{"This object is not a valid instance of this class."};
                 }
                 auto def = static_cast<InstanceDefine::Method*>(data1);
@@ -582,7 +592,8 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                 if (thiz == nullptr) {
                     return Null{};
                 }
-                if (kInstanceCallCheckClassDefine && typed->define_ != data2 && typed->define_->extends_ != data2) {
+                if (kInstanceCallCheckClassDefine
+                    && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
                     throw JsException{"This object is not a valid instance of this class."};
                 }
                 auto def = static_cast<InstanceDefine::Property*>(data1);
@@ -602,7 +613,8 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                     if (thiz == nullptr) {
                         return Null{};
                     }
-                    if (kInstanceCallCheckClassDefine && typed->define_ != data2 && typed->define_->extends_ != data2) {
+                    if (kInstanceCallCheckClassDefine
+                        && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
                         throw JsException{"This object is not a valid instance of this class."};
                     }
                     auto def = static_cast<InstanceDefine::Property*>(data1);
