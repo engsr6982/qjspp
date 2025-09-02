@@ -3,6 +3,7 @@
 #include "catch2/matchers/catch_matchers.hpp"
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "qjspp/Binding.hpp"
+#include "qjspp/Definitions.hpp"
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
@@ -327,4 +328,30 @@ TEST_CASE_METHOD(TestEngineFixture, "Builder Pattern") {
         let str = builder.append("Hello").append(" World").build();
         assert(str == "Hello World");
     )"));
+}
+
+
+// enum bind
+
+enum class Color {
+    Red = 0,
+    Green,
+    Blue,
+};
+
+qjspp::EnumDefine ColorDef_ = qjspp::defineEnum<Color>("Color")
+                                  .value("Red", Color::Red)
+                                  .value("Green", Color::Green)
+                                  .value("Blue", Color::Blue)
+                                  .build();
+
+TEST_CASE_METHOD(TestEngineFixture, "Enum Bind") {
+    qjspp::JsScope scope{engine_};
+
+    engine_->registerEnum(ColorDef_);
+
+    REQUIRE(engine_->eval("Color.$name").asString().value() == "Color");
+    REQUIRE(engine_->eval("Color.Red").asNumber().getInt32() == 0);
+    REQUIRE(engine_->eval("Color.Green").asNumber().getInt32() == 1);
+    REQUIRE(engine_->eval("Color.Blue").asNumber().getInt32() == 2);
 }

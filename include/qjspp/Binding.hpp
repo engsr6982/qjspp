@@ -4,6 +4,7 @@
 #include "qjspp/Types.hpp"
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 
 namespace qjspp {
@@ -52,23 +53,23 @@ std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(T
 template <typename Class>
 struct ClassDefineBuilder {
 private:
-    std::string                           mClassName;
-    std::vector<StaticDefine::Property>   mStaticProperty;
-    std::vector<StaticDefine::Function>   mStaticFunctions;
-    InstanceConstructor                   mInstanceConstructor;
-    std::vector<InstanceDefine::Property> mInstanceProperty;
-    std::vector<InstanceDefine::Method>   mInstanceFunctions;
-    ClassDefine const*                    mExtends         = nullptr;
-    bool const                            mIsInstanceClass = !std::is_void_v<Class>;
+    std::string                           className_;
+    std::vector<StaticDefine::Property>   staticProperty_;
+    std::vector<StaticDefine::Function>   staticFunctions_;
+    InstanceConstructor                   instanceConstructor_;
+    std::vector<InstanceDefine::Property> instanceProperty_;
+    std::vector<InstanceDefine::Method>   instanceFunctions_;
+    ClassDefine const*                    extend_          = nullptr;
+    bool const                            isInstanceClass_ = !std::is_void_v<Class>;
 
 public:
-    explicit ClassDefineBuilder(std::string className) : mClassName(std::move(className)) {}
+    explicit ClassDefineBuilder(std::string className) : className_(std::move(className)) {}
 
     // 注册静态方法（已包装的 JsFunctionCallback） / Register static function (already wrapped)
     template <typename Fn>
         requires(IsFunctionCallback<Fn>)
     ClassDefineBuilder<Class>& function(std::string name, Fn&& fn) {
-        mStaticFunctions.emplace_back(std::move(name), std::forward<Fn>(fn));
+        staticFunctions_.emplace_back(std::move(name), std::forward<Fn>(fn));
         return *this;
     }
 
@@ -76,7 +77,7 @@ public:
     template <typename Fn>
         requires(!IsFunctionCallback<Fn>)
     ClassDefineBuilder<Class>& function(std::string name, Fn&& fn) {
-        mStaticFunctions.emplace_back(std::move(name), internal::bindStaticFunction(std::forward<Fn>(fn)));
+        staticFunctions_.emplace_back(std::move(name), internal::bindStaticFunction(std::forward<Fn>(fn)));
         return *this;
     }
 
@@ -84,13 +85,13 @@ public:
     template <typename... Fn>
         requires(sizeof...(Fn) > 1 && (!IsFunctionCallback<Fn> && ...))
     ClassDefineBuilder<Class>& function(std::string name, Fn&&... fn) {
-        mStaticFunctions.emplace_back(std::move(name), internal::bindStaticOverloadedFunction(std::forward<Fn>(fn)...));
+        staticFunctions_.emplace_back(std::move(name), internal::bindStaticOverloadedFunction(std::forward<Fn>(fn)...));
         return *this;
     }
 
     // 注册静态属性（回调形式）/ Static property with raw callback
     ClassDefineBuilder<Class>& property(std::string name, GetterCallback getter, SetterCallback setter = nullptr) {
-        mStaticProperty.emplace_back(std::move(name), std::move(getter), std::move(setter));
+        staticProperty_.emplace_back(std::move(name), std::move(getter), std::move(setter));
         return *this;
     }
 
@@ -98,7 +99,7 @@ public:
     template <typename Ty>
     ClassDefineBuilder<Class>& property(std::string name, Ty* member) {
         auto gs = internal::bindStaticProperty<Ty>(member);
-        mStaticProperty.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
+        staticProperty_.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
         return *this;
     }
 
@@ -115,8 +116,8 @@ public:
             !std::is_aggregate_v<Class> && std::is_constructible_v<Class, Args...>,
             "Constructor must be callable with the specified arguments"
         );
-        if (mInstanceConstructor) throw std::logic_error("Constructor has already been registered!");
-        mInstanceConstructor = internal::bindInstanceConstructor<Class, Args...>();
+        if (instanceConstructor_) throw std::logic_error("Constructor has already been registered!");
+        instanceConstructor_ = internal::bindInstanceConstructor<Class, Args...>();
         return *this;
     }
 
@@ -127,8 +128,8 @@ public:
     template <typename T = Class>
         requires(!std::is_void_v<T>)
     ClassDefineBuilder<Class>& customConstructor(InstanceConstructor ctor) {
-        if (mInstanceConstructor) throw std::logic_error("Constructor has already been registered!");
-        mInstanceConstructor = std::move(ctor);
+        if (instanceConstructor_) throw std::logic_error("Constructor has already been registered!");
+        instanceConstructor_ = std::move(ctor);
         return *this;
     }
 
@@ -139,8 +140,8 @@ public:
     template <typename T = Class>
         requires(!std::is_void_v<T>)
     ClassDefineBuilder<Class>& disableConstructor() {
-        if (mInstanceConstructor) throw std::logic_error("Constructor has already been registered!");
-        mInstanceConstructor = [](Arguments const&) { return nullptr; };
+        if (instanceConstructor_) throw std::logic_error("Constructor has already been registered!");
+        instanceConstructor_ = [](Arguments const&) { return nullptr; };
         return *this;
     }
 
@@ -148,7 +149,7 @@ public:
     template <typename Fn>
         requires(!std::is_void_v<Class> && IsInstanceMethodCallback<Fn>)
     ClassDefineBuilder<Class>& instanceMethod(std::string name, Fn&& fn) {
-        mInstanceFunctions.emplace_back(std::move(name), std::forward<Fn>(fn));
+        instanceFunctions_.emplace_back(std::move(name), std::forward<Fn>(fn));
         return *this;
     }
 
@@ -156,7 +157,7 @@ public:
     template <typename Fn>
         requires(!std::is_void_v<Class> && !IsInstanceMethodCallback<Fn> && std::is_member_function_pointer_v<Fn>)
     ClassDefineBuilder<Class>& instanceMethod(std::string name, Fn&& fn) {
-        mInstanceFunctions.emplace_back(std::move(name), internal::bindInstanceMethod<Class>(std::forward<Fn>(fn)));
+        instanceFunctions_.emplace_back(std::move(name), internal::bindInstanceMethod<Class>(std::forward<Fn>(fn)));
         return *this;
     }
 
@@ -168,7 +169,7 @@ public:
                 && (std::is_member_function_pointer_v<Fn> && ...))
         )
     ClassDefineBuilder<Class>& instanceMethod(std::string name, Fn&&... fn) {
-        mInstanceFunctions.emplace_back(
+        instanceFunctions_.emplace_back(
             std::move(name),
             internal::bindInstanceOverloadedMethod<Class>(std::forward<Fn>(fn)...)
         );
@@ -179,7 +180,7 @@ public:
     ClassDefineBuilder<Class>&
     instanceProperty(std::string name, InstanceGetterCallback getter, InstanceSetterCallback setter = nullptr) {
         static_assert(!std::is_void_v<Class>, "Only instance class can have instanceProperty");
-        mInstanceProperty.emplace_back(std::move(name), std::move(getter), std::move(setter));
+        instanceProperty_.emplace_back(std::move(name), std::move(getter), std::move(setter));
         return *this;
     }
 
@@ -188,7 +189,7 @@ public:
         requires(!std::is_void_v<Class> && std::is_member_object_pointer_v<Member>)
     ClassDefineBuilder<Class>& instanceProperty(std::string name, Member member) {
         auto gs = internal::bindInstanceProperty<Class>(std::forward<Member>(member));
-        mInstanceProperty.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
+        instanceProperty_.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
         return *this;
     }
 
@@ -199,12 +200,12 @@ public:
      */
     ClassDefineBuilder<Class>& extends(ClassDefine const& parent) {
         static_assert(!std::is_void_v<Class>, "Only instance classes can set up inheritance.");
-        mExtends = &parent;
+        extend_ = &parent;
         return *this;
     }
 
     ClassDefine build() {
-        if (mIsInstanceClass && !mInstanceConstructor) {
+        if (isInstanceClass_ && !instanceConstructor_) {
             throw std::logic_error("Instance class must have a constructor!");
         }
 
@@ -220,14 +221,14 @@ public:
         }
 
         return ClassDefine{
-            std::move(mClassName),
-            StaticDefine{std::move(mStaticProperty), std::move(mStaticFunctions)},
+            std::move(className_),
+            StaticDefine{std::move(staticProperty_), std::move(staticFunctions_)},
             InstanceDefine{
-                         std::move(mInstanceConstructor),
-                         std::move(mInstanceProperty),
-                         std::move(mInstanceFunctions)
+                         std::move(instanceConstructor_),
+                         std::move(instanceProperty_),
+                         std::move(instanceFunctions_)
             },
-            mExtends,
+            extend_,
             factory
         };
     }
@@ -237,6 +238,30 @@ public:
 template <typename C>
 inline ClassDefineBuilder<C> defineClass(std::string className) {
     return ClassDefineBuilder<C>(std::move(className));
+}
+
+
+template <typename E>
+struct EnumDefineBuilder {
+    static_assert(std::is_enum_v<E>, "EnumDefineBuilder only accept enum type!");
+
+    std::string                    name_;
+    std::vector<EnumDefine::Entry> entries_;
+
+    explicit EnumDefineBuilder(std::string name) : name_(std::move(name)) {}
+
+    EnumDefineBuilder& value(std::string name, E e) {
+        entries_.emplace_back(std::move(name), static_cast<int64_t>(e));
+        return *this;
+    }
+
+    EnumDefine build() { return EnumDefine{std::move(name_), std::move(entries_)}; }
+};
+
+
+template <typename E>
+inline EnumDefineBuilder<E> defineEnum(std::string name) {
+    return EnumDefineBuilder<E>(std::move(name));
 }
 
 

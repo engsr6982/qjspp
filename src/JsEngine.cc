@@ -196,9 +196,8 @@ JsEngine::~JsEngine() {
 
     {
         JsScope scope{this};
-        for (auto&& [def, obj] : nativeStaticClasses_) {
-            obj.reset();
-        }
+        for (auto&& [def, obj] : nativeEnums_) obj.reset();
+        for (auto&& [def, obj] : nativeStaticClasses_) obj.reset();
         for (auto&& [def, data] : nativeInstanceClasses_) {
             JS_FreeValue(context_, data.first);
             JS_FreeValue(context_, data.second);
@@ -364,6 +363,11 @@ Object JsEngine::registerNativeClass(ClassDefine const& def) {
     auto ctor = createJavaScriptClassOf(def);
     globalThis().set(def.name_, ctor);
     return ctor;
+}
+Object JsEngine::registerEnum(EnumDefine const& def) {
+    auto obj = implRegisterEnum(def);
+    globalThis().set(def.name_, obj);
+    return obj;
 }
 void JsEngine::registerNativeModule(ModuleDefine const& module) {
     if (nativeModules_.contains(module.name_)) {
@@ -688,7 +692,15 @@ void JsEngine::implStaticRegister(Object& ctor, StaticDefine const& def) {
         JsException::check(ret);
     }
 }
-
+Object JsEngine::implRegisterEnum(EnumDefine const& def) {
+    Object obj{};
+    obj.set("$name", String{def.name_});
+    for (auto const& [name, value] : def.entries_) {
+        obj.set(name, Number{value});
+    }
+    nativeEnums_.emplace(&def, obj);
+    return obj;
+}
 
 Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<WrappedResource>&& wrappedResource) {
     auto iter = nativeInstanceClasses_.find(&def);

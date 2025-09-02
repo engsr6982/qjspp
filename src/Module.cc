@@ -19,79 +19,77 @@ JSModuleDef* ModuleDefine::init(JsEngine* engine) const {
     auto module = JS_NewCModule(engine->context_, name_.c_str(), [](JSContext* ctx, JSModuleDef* module) -> int {
         auto engine = static_cast<JsEngine*>(JS_GetContextOpaque(ctx));
 
-        // 1) 查询缓存
-        if (engine->loadedModules_.contains(module)) {
-            auto& mdef = engine->loadedModules_.at(module);
-            for (auto& clsDef : mdef->class_) {
-                // 1.1) 检查类类别，进行分别查表
-                if (clsDef->hasInstanceConstructor()) {
-                    auto& mapped = engine->nativeInstanceClasses_.at(clsDef);
-                    JsException::check(
-                        JS_SetModuleExport(ctx, module, clsDef->name_.c_str(), JS_DupValue(ctx, mapped.first))
-                    );
-                } else {
-                    auto object = engine->nativeStaticClasses_.at(clsDef);
-                    JsException::check(
-                        JS_SetModuleExport(ctx, module, clsDef->name_.c_str(), JS_DupValue(ctx, Value::extract(object)))
-                    );
-                }
+        ModuleDefine const* def = nullptr;
+
+        auto iter = engine->loadedModules_.find(module);
+        if (iter != engine->loadedModules_.end()) {
+            // 模块已实例化，直接获取
+            def = iter->second;
+        } else {
+            // 模块未实例化，进行实例化
+            auto atom  = JS_GetModuleName(ctx, module);
+            auto cname = JS_AtomToCString(ctx, atom);
+            JS_FreeAtom(ctx, atom);
+            if (cname == nullptr) {
+                return -1; // 无法获取模块名
             }
-            return 0;
+
+            auto iter = engine->nativeModules_.find(cname); // 查找模块定义(使用模块名)
+            JS_FreeCString(ctx, cname);
+            if (iter == engine->nativeModules_.end()) {
+                return -1; // 逻辑错误，未注册的模块
+            }
+            def = iter->second;
         }
-
-        // 2) 无缓存，进行注册
-        auto atom  = JS_GetModuleName(ctx, module);
-        auto cname = JS_AtomToCString(ctx, atom);
-        JS_FreeAtom(ctx, atom);
-        if (cname == nullptr) return -1; // 无法获取模块名
-        auto iter = engine->nativeModules_.find(cname);
-        JS_FreeCString(ctx, cname);
-        if (iter == engine->nativeModules_.end()) return -1; // 逻辑错误，未注册的模块
-        auto& mdef = iter->second;
-
-        for (auto& clsDef : mdef->class_) {
-            // 2.1) 检查类别并尝试查表，不存在进行注册
-            Value ctor;
-            if (clsDef->hasInstanceConstructor()) {
-                auto iter = engine->nativeInstanceClasses_.find(clsDef);
-                if (iter != engine->nativeInstanceClasses_.end()) {
-                    ctor = Value::wrap<Value>(iter->second.first);
-                }
-            } else {
-                auto iter = engine->nativeStaticClasses_.find(clsDef);
-                if (iter != engine->nativeStaticClasses_.end()) {
-                    ctor = iter->second;
-                }
-            }
-
-            if (!ctor) {
-                ctor = engine->createJavaScriptClassOf(*clsDef);
-            }
-
-            JsException::check(
-                JS_SetModuleExport(ctx, module, clsDef->name_.c_str(), JS_DupValue(ctx, Value::extract(ctor)))
-            );
-        }
-        engine->loadedModules_.emplace(module, mdef);
+        assert(def != nullptr);
+        def->_performExports(engine, ctx, module);
+        engine->loadedModules_.emplace(module, def);
         return 0;
     });
 
-    for (auto& c : class_) {
-        int code = JS_AddModuleExport(engine->context_, module, c->name_.c_str());
-        JsException::check(code);
-    }
+    _performExportDeclarations(engine, module);
+
     return module;
 }
 
-
-ModuleDefineBuilder::ModuleDefineBuilder(std::string name) : name_(std::move(name)) {}
-
-ModuleDefineBuilder& ModuleDefineBuilder::exportClass(ClassDefine const& def) {
-    class_.push_back(&def);
-    return *this;
+void ModuleDefine::_performExportDeclarations(JsEngine* engine, JSModuleDef* module) const {
+    for (auto& c : class_) {
+        JsException::check(JS_AddModuleExport(engine->context_, module, c->name_.c_str()));
+    }
+    for (auto& e : enum_) {
+        JsException::check(JS_AddModuleExport(engine->context_, module, e->name_.c_str()));
+    }
 }
+void ModuleDefine::_performExports(JsEngine* engine, JSContext* ctx, JSModuleDef* module) const {
+    for (auto& def : class_) {
+        Value ctor{}; // undefined
 
-ModuleDefine ModuleDefineBuilder::build() const { return ModuleDefine{name_, class_}; }
+        if (def->hasInstanceConstructor()) {
+            auto iter = engine->nativeInstanceClasses_.find(def);
+            if (iter != engine->nativeInstanceClasses_.end()) {
+                ctor = Value::wrap<Value>(iter->second.first);
+            }
+        } else {
+            auto iter = engine->nativeStaticClasses_.find(def);
+            if (iter != engine->nativeStaticClasses_.end()) {
+                ctor = iter->second;
+            }
+        }
+
+        if (!ctor) {
+            ctor = engine->createJavaScriptClassOf(*def); // 无缓存进行注册
+        }
+
+        JsException::check(JS_SetModuleExport(ctx, module, def->name_.c_str(), JS_DupValue(ctx, Value::extract(ctor))));
+    }
+    for (auto& def : enum_) {
+        if (!engine->nativeEnums_.contains(def)) {
+            engine->implRegisterEnum(*def); // 无缓存进行注册
+        }
+        auto obj = engine->nativeEnums_.at(def);
+        JsException::check(JS_SetModuleExport(ctx, module, def->name_.c_str(), JS_DupValue(ctx, Value::extract(obj))));
+    }
+}
 
 
 } // namespace qjspp

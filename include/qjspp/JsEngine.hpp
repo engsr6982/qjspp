@@ -1,6 +1,7 @@
 #pragma once
 #include "Global.hpp"
 #include "qjspp/Concepts.hpp"
+#include "qjspp/Definitions.hpp"
 #include "qjspp/TaskQueue.hpp"
 #include "qjspp/Types.hpp"
 #include "quickjs.h"
@@ -65,6 +66,17 @@ public:
      * @note 注册为模块后，需要使用 import xx from "<name>" 导入
      */
     void registerNativeModule(ModuleDefine const& module);
+
+    /**
+     * 注册一个枚举
+     * @param def 枚举定义
+     * @note 对于枚举，qjspp 的行为如下:
+     *       C++ -> Js  对 enum 进行 static_cast 到 int32(number) 传给 Js (TypeConverter)
+     *       Js  -> C++ 因为 Js 没有枚举类型，手动传递 num 值麻烦，所以使用本API，创建一个静态的 Object
+     *        对象，将枚举值映射到对象属性上，方便 Js 获取枚举值
+     * @note qjspp 会对每个 enum object 设置一个 $name 属性，值为 enum 的名字
+     */
+    Object registerEnum(EnumDefine const& def);
 
     /**
      * 创建一个新的 JavaScript 类实例
@@ -136,6 +148,7 @@ private:
     Object   createConstructor(ClassDefine const& def);
     Object   createPrototype(ClassDefine const& def);
     void     implStaticRegister(Object& ctor, StaticDefine const& def);
+    Object   implRegisterEnum(EnumDefine const& def);
 
     ::JSRuntime* runtime_{nullptr};
     ::JSContext* context_{nullptr};
@@ -151,6 +164,7 @@ private:
 
     UnhandledJsExceptionCallback unhandledJsExceptionCallback_{nullptr};
 
+    std::unordered_map<EnumDefine const*, Object>                       nativeEnums_;           // {def, obj}
     std::unordered_map<ClassDefine const*, Object>                      nativeStaticClasses_;   // {def, obj}
     std::unordered_map<ClassDefine const*, std::pair<JSValue, JSValue>> nativeInstanceClasses_; // {ctor, proto}
     std::unordered_map<std::string, ModuleDefine const*>                nativeModules_;         // {name, def} (懒加载)
