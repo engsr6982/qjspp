@@ -376,3 +376,14 @@ TEST_CASE_METHOD(TestEngineFixture, "Enum Module Bind") {
         qjspp::JsEngine::EvalType::kModule
     ));
 }
+
+
+// toStringTag
+
+TEST_CASE_METHOD(TestEngineFixture, "toStringTag") {
+    qjspp::JsScope scope{engine_};
+
+    engine_->registerEnum(ColorDef_);
+
+    REQUIRE(engine_->eval("Color.toString()").asString().value() == "[object Color]");
+}

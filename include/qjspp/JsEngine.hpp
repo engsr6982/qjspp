@@ -162,6 +162,11 @@ private:
     mutable std::recursive_mutex mutex_;             // 线程安全互斥量
     JSAtom                       lengthAtom_ = {};   // for Array
 
+#ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
+    JSAtom toStringTagSymbol_{}; // for class、enum...
+    void   patchToStringTag(Object& obj, std::string_view tag) const;
+#endif
+
     UnhandledJsExceptionCallback unhandledJsExceptionCallback_{nullptr};
 
     std::unordered_map<EnumDefine const*, Object>                       nativeEnums_;           // {def, obj}

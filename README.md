@@ -31,3 +31,12 @@ if (kInstanceCallCheckClassDefine && typed->define_ != data2 && typed->define_->
 - 默认状态：关闭
 
 启用后，在 `TypeConverter<int64/uint64>::toXXX` 时会直接使用 `Number` 类型进行转换，而不是 `BigInt` 类型。
+
+### `QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG`
+
+- 默认状态：关闭
+
+启用后，qjspp 将不会对任何注册到 js 中的实例类、静态类、枚举等，进行修改 `Symbol.toStringTag` 属性
+
+> 默认情况下，qjspp 会将 `Symbol.toStringTag` 属性修改为 `define_->name_`，以方便调试  
+> https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Symbol/toStringTag

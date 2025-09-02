@@ -182,6 +182,17 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
 
     lengthAtom_ = JS_NewAtom(context_, "length");
 
+#ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
+    {
+        JsScope scope{this};
+        auto    sym = eval("(Symbol.toStringTag)"); // 获取 Symbol.toStringTag
+        if (!JS_IsSymbol(Value::extract(sym))) {
+            throw JsException("Failed to get Symbol.toStringTag");
+        }
+        toStringTagSymbol_ = JS_ValueToAtom(context_, Value::extract(sym));
+    }
+#endif
+
     JS_SetRuntimeOpaque(runtime_, this);
     JS_SetContextOpaque(context_, this);
     JS_SetModuleLoaderFunc(runtime_, &ModuleLoader::normalize, &ModuleLoader::loader, this);
@@ -193,7 +204,9 @@ JsEngine::~JsEngine() {
     queue_.reset();
 
     JS_FreeAtom(context_, lengthAtom_);
-
+#ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
+    JS_FreeAtom(context_, toStringTagSymbol_);
+#endif
     {
         JsScope scope{this};
         for (auto&& [def, obj] : nativeEnums_) obj.reset();
@@ -385,9 +398,13 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
         // 非实例类，挂载为 Object 的静态属性
         auto object = Object{};
         implStaticRegister(object, def.staticDefine_);
+#ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
+        patchToStringTag(object, def.name_);
+#endif
         nativeStaticClasses_.emplace(&def, object);
         return object;
     }
+
 
     if (def.instanceDefine_.classId_ == JS_INVALID_CLASS_ID) {
         auto id = const_cast<JSClassID*>(&def.instanceDefine_.classId_);
@@ -406,6 +423,11 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
 
     JS_SetConstructor(context_, Value::extract(ctor), Value::extract(proto));
     JS_SetClassProto(context_, def.instanceDefine_.classId_, JS_DupValue(context_, Value::extract(proto)));
+
+#ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
+    patchToStringTag(ctor, def.name_);
+    patchToStringTag(proto, def.name_);
+#endif
 
     nativeInstanceClasses_.emplace(
         &def,
@@ -698,9 +720,25 @@ Object JsEngine::implRegisterEnum(EnumDefine const& def) {
     for (auto const& [name, value] : def.entries_) {
         obj.defineOwnProperty(name, Number{value}, PropertyAttributes::DontDelete | PropertyAttributes::ReadOnly);
     }
+#ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
+    patchToStringTag(obj, def.name_);
+#endif
     nativeEnums_.emplace(&def, obj);
     return obj;
 }
+
+#ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
+void JsEngine::patchToStringTag(Object& obj, std::string_view tag) const {
+    JS_DefinePropertyValue(
+        context_,
+        Value::extract(obj),
+        toStringTagSymbol_,
+        JS_NewString(context_, tag.data()),
+        JS_PROP_CONFIGURABLE
+    );
+}
+#endif
+
 
 Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<WrappedResource>&& wrappedResource) {
     auto iter = nativeInstanceClasses_.find(&def);
