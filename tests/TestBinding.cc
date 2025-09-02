@@ -355,3 +355,24 @@ TEST_CASE_METHOD(TestEngineFixture, "Enum Bind") {
     REQUIRE(engine_->eval("Color.Green").asNumber().getInt32() == 1);
     REQUIRE(engine_->eval("Color.Blue").asNumber().getInt32() == 2);
 }
+
+qjspp::ModuleDefine ColorModuleDef_ = qjspp::defineModule("Color").exportEnum(ColorDef_).build();
+
+TEST_CASE_METHOD(TestEngineFixture, "Enum Module Bind") {
+    qjspp::JsScope scope{engine_};
+
+    engine_->registerNativeModule(ColorModuleDef_);
+    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+
+    REQUIRE_NOTHROW(engine_->eval(
+        R"(
+            import { Color } from "Color";
+            assert(Color.$name == "Color");
+            assert(Color.Red == 0);
+            assert(Color.Green == 1);
+            assert(Color.Blue == 2);
+        )",
+        "<eval>",
+        qjspp::JsEngine::EvalType::kModule
+    ));
+}

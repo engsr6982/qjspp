@@ -694,9 +694,9 @@ void JsEngine::implStaticRegister(Object& ctor, StaticDefine const& def) {
 }
 Object JsEngine::implRegisterEnum(EnumDefine const& def) {
     Object obj{};
-    obj.set("$name", String{def.name_});
+    obj.defineOwnProperty("$name", String{def.name_}, PropertyAttributes::DontDelete | PropertyAttributes::ReadOnly);
     for (auto const& [name, value] : def.entries_) {
-        obj.set(name, Number{value});
+        obj.defineOwnProperty(name, Number{value}, PropertyAttributes::DontDelete | PropertyAttributes::ReadOnly);
     }
     nativeEnums_.emplace(&def, obj);
     return obj;

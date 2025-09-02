@@ -18,7 +18,11 @@ struct ModuleDefine {
     std::vector<ClassDefine const*> const class_;
     std::vector<EnumDefine const*> const  enum_;
 
-    explicit ModuleDefine(std::string name, std::vector<ClassDefine const*> class_);
+    explicit ModuleDefine(
+        std::string                     name,
+        std::vector<ClassDefine const*> class_,
+        std::vector<EnumDefine const*>  enum_ 
+    );
 
 private:
     JSModuleDef* init(JsEngine* engine) const;
@@ -49,7 +53,7 @@ public:
         return *this;
     }
 
-    [[nodiscard]] ModuleDefine build() const { return ModuleDefine{name_, class_}; }
+    [[nodiscard]] ModuleDefine build() const { return ModuleDefine{name_, class_, enum_}; }
 };
 
 

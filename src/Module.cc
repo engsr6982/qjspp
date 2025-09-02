@@ -11,9 +11,14 @@
 namespace qjspp {
 
 
-ModuleDefine::ModuleDefine(std::string name, std::vector<ClassDefine const*> class_)
+ModuleDefine::ModuleDefine(
+    std::string                     name,
+    std::vector<ClassDefine const*> class_,
+    std::vector<EnumDefine const*>  enum_
+)
 : name_(std::move(name)),
-  class_(std::move(class_)) {}
+  class_(std::move(class_)),
+  enum_(std::move(enum_)) {}
 
 JSModuleDef* ModuleDefine::init(JsEngine* engine) const {
     auto module = JS_NewCModule(engine->context_, name_.c_str(), [](JSContext* ctx, JSModuleDef* module) -> int {
