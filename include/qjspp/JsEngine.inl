@@ -14,21 +14,12 @@ std::shared_ptr<T> JsEngine::getData() const {
 
 template <typename T>
 Object JsEngine::newInstanceOfRaw(ClassDefine const& def, T* instance) {
-    auto wrap = WrappedResource::make(
-        instance,
-        [](void* res) -> void* { return res; }, // no-op
-        [](void* res) -> void { delete static_cast<T*>(res); }
-    );
-    return newInstance(def, std::move(wrap));
+    return newInstance(def, std::move(def.wrap(instance)));
 }
 
 template <typename T>
 Object JsEngine::newInstanceOfView(ClassDefine const& def, T* instance) {
-    auto wrap = WrappedResource::make(
-        instance,
-        [](void* res) -> void* { return res; }, // no-op
-        [](void*) -> void {}
-    );
+    auto wrap = WrappedResource::make(instance, [](void* res) -> void* { return res; }, nullptr);
     return newInstance(def, std::move(wrap));
 }
 
