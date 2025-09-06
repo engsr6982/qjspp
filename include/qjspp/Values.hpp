@@ -328,10 +328,11 @@ public:
 
 
 class Arguments final {
-    JsEngine*     engine_;
-    JSValueConst  thiz_;
-    int           length_;
-    JSValueConst* args_;
+    JsEngine*               engine_;
+    JSValueConst            thiz_;
+    int                     length_;
+    JSValueConst*           args_;
+    struct WrappedResource* wrap_{nullptr};
 
     friend class JsEngine;
     friend class Function;
@@ -348,6 +349,12 @@ public:
     [[nodiscard]] Object thiz() const; // this
 
     [[nodiscard]] size_t length() const;
+
+    // Obtain internal resource management wrapper.
+    // This function is only used internally.
+    // note: This resource is only valid during instance class calls (method, property).
+    [[nodiscard]] bool                    hasWrappedResource() const;
+    [[nodiscard]] struct WrappedResource* getWrappedResource() const;
 
     Value operator[](size_t index) const;
 };

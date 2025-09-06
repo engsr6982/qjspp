@@ -543,8 +543,9 @@ Object JsEngine::createConstructor(ClassDefine const& def) {
             }
 
             if (!instance) { // construct from js
-                const_cast<Arguments&>(args).thiz_ = obj;
-                instance                           = (def->instanceDefine_.constructor_)(args);
+                auto& unConst = const_cast<Arguments&>(args);
+                unConst.thiz_ = obj;
+                instance      = (def->instanceDefine_.constructor_)(args);
                 if (!instance) {
                     throw JsException{"This native class cannot be constructed."};
                 }
@@ -596,6 +597,8 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                     && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
                     throw JsException{"This object is not a valid instance of this class."};
                 }
+                const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
+
                 auto def = static_cast<InstanceDefine::Method*>(data1);
                 return (def->callback_)(thiz, args);
             }
@@ -622,6 +625,8 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                     && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
                     throw JsException{"This object is not a valid instance of this class."};
                 }
+                const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
+
                 auto def = static_cast<InstanceDefine::Property*>(data1);
                 return (def->getter_)(thiz, args);
             }
@@ -643,6 +648,8 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                         && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
                         throw JsException{"This object is not a valid instance of this class."};
                     }
+                    const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
+
                     auto def = static_cast<InstanceDefine::Property*>(data1);
                     (def->setter_)(thiz, args);
                     return {}; // undefined
