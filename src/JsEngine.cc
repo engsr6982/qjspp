@@ -591,7 +591,7 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                 auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
                 auto thiz  = (*typed)();
                 if (thiz == nullptr) {
-                    return Null{};
+                    throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
                 }
                 if (kInstanceCallCheckClassDefine
                     && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
@@ -619,7 +619,7 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                 auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
                 auto thiz  = (*typed)();
                 if (thiz == nullptr) {
-                    return Null{};
+                    throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
                 }
                 if (kInstanceCallCheckClassDefine
                     && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
@@ -642,7 +642,7 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                     auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
                     auto thiz  = (*typed)();
                     if (thiz == nullptr) {
-                        return Null{};
+                        throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
                     }
                     if (kInstanceCallCheckClassDefine
                         && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
