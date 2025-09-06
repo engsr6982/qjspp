@@ -149,7 +149,17 @@ private:
     friend class JsEngine;
 
 public:
-    inline void* operator()() const { return getter_(resource_); }
+    inline void* operator()() const {
+        if (resource_ == nullptr) return nullptr;
+        return getter_(resource_);
+    }
+
+    inline void freeResource() {
+        if (deleter_ != nullptr && resource_ != nullptr) {
+            deleter_(resource_);
+            resource_ = nullptr;
+        }
+    }
 
     QJSPP_DISALLOW_COPY(WrappedResource);
     explicit WrappedResource() = delete;
@@ -159,11 +169,7 @@ public:
       getter_(getter),
       deleter_(deleter) {}
 
-    ~WrappedResource() {
-        if (deleter_ != nullptr) {
-            deleter_(resource_);
-        }
-    }
+    ~WrappedResource() { freeResource(); }
 
     template <typename... Args>
         requires std::constructible_from<WrappedResource, Args...>
