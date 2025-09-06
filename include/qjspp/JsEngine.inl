@@ -70,7 +70,10 @@ Object JsEngine::newInstanceOfWeak(ClassDefine const& def, std::weak_ptr<T>&& in
     auto control = new Control{std::move(instance)};
     auto wrap    = WrappedResource::make(
         control,
-        [](void* res) -> void* { return static_cast<Control*>(res)->instance.lock().get(); },
+        [](void* res) -> void* {
+            // TODO: 临时 shared_ptr 裸指针不安全，需要持久化或在 wrapper 后清理
+            return static_cast<Control*>(res)->instance.lock().get();
+        },
         [](void* res) -> void { delete static_cast<Control*>(res); }
     );
     return newInstance(def, wrap);
