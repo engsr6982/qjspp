@@ -581,6 +581,42 @@ bool ClassDefineCheckHelper(ClassDefine const* def, ClassDefine const* target) {
 Object JsEngine::createPrototype(ClassDefine const& def) {
     auto prototype = Object{};
     auto defPtr    = const_cast<ClassDefine*>(&def);
+
+#ifndef QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO
+    prototype.set(
+        kInstanceClassHelperEqlaus,
+        createQuickJsCFunction(defPtr, nullptr, [](Arguments const& args, void* data1, void*, bool) -> Value {
+            auto classID = JS_GetClassID(args.thiz_);
+            assert(classID != JS_INVALID_CLASS_ID);
+            auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
+            auto thiz  = (*typed)();
+            if (thiz == nullptr) {
+                throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
+            }
+            if (kInstanceCallCheckClassDefine
+                && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data1))) {
+                throw JsException{"This object is not a valid instance of this class."};
+            }
+            const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
+
+            // lhs.$equals(rhs): boolean; lhs == rhs
+            if (args.length_ != 1) {
+                throw JsException{"$equals() takes exactly one argument."};
+            }
+
+            auto rhs = args[0];
+            if (!rhs.isObject() || !args.engine_->isInstanceOf(rhs.asObject(), *typed->define_)) {
+                return Boolean{false};
+            }
+
+            auto rhsInstance = args.engine_->getNativeInstanceOf(rhs.asObject(), *typed->define_);
+
+            bool const val = (*typed->define_->instanceDefine_.equals_)(thiz, rhsInstance);
+            return Boolean{val};
+        })
+    );
+#endif // QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO
+
     for (auto&& method : def.instanceDefine_.methods_) {
         auto fn = createQuickJsCFunction(
             const_cast<InstanceDefine::Method*>(&method),

@@ -347,6 +347,25 @@ std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(T
     }
 }
 
+
+template <typename C>
+InstanceDefine::InstanceEqualsCallback bindInstanceEqualsImpl(std::false_type) {
+    return [](void* lhs, void* rhs) -> bool { return lhs == rhs; };
+}
+template <typename C>
+InstanceDefine::InstanceEqualsCallback bindInstanceEqualsImpl(std::true_type) {
+    return [](void* lhs, void* rhs) -> bool {
+        if (!lhs || !rhs) return false;
+        return *static_cast<C*>(lhs) == *static_cast<C*>(rhs);
+    };
+}
+template <typename C>
+InstanceDefine::InstanceEqualsCallback bindInstanceEquals() {
+    // use tag dispatch to fix MSVC pre name lookup or overload resolution
+    return bindInstanceEqualsImpl<C>(std::bool_constant<HasEquality<C>>{});
+}
+
+
 } // namespace internal
 
 } // namespace qjspp

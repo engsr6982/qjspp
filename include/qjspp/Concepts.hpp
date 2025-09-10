@@ -32,6 +32,11 @@ concept HasDefaultConstructor_v = requires {
 template <typename T>
 concept HasUserDeclaredDestructor_v = !std::is_trivially_destructible_v<T>;
 
+template <typename T>
+concept HasEquality = requires(T const& lhs, T const& rhs) {
+    { lhs == rhs } -> std::convertible_to<bool>;
+};
+
 
 //  helper
 template <typename T>

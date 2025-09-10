@@ -47,6 +47,10 @@ InstanceSetterCallback bindInstanceSetter(Fn&& fn);
 template <typename C, typename Ty>
 std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(Ty C::* prop);
 
+
+template <typename C>
+InstanceDefine::InstanceEqualsCallback bindInstanceEquals();
+
 } // namespace internal
 
 
@@ -209,6 +213,7 @@ public:
             throw std::logic_error("Instance class must have a constructor!");
         }
 
+        // generate class wrapped resource factory
         ClassDefine::TypedWrappedResourceFactory factory = nullptr;
         if constexpr (!std::is_void_v<Class>) {
             factory = [](void* instance) -> std::unique_ptr<WrappedResource> {
@@ -220,13 +225,20 @@ public:
             };
         }
 
+        // generate script helper function
+        InstanceDefine::InstanceEqualsCallback equals = nullptr;
+        if constexpr (!std::is_void_v<Class>) {
+            equals = internal::bindInstanceEquals<Class>();
+        }
+
         return ClassDefine{
             std::move(className_),
             StaticDefine{std::move(staticProperty_), std::move(staticFunctions_)},
             InstanceDefine{
                          std::move(instanceConstructor_),
                          std::move(instanceProperty_),
-                         std::move(instanceFunctions_)
+                         std::move(instanceFunctions_),
+                         equals
             },
             extend_,
             factory

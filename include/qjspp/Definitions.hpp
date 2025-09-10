@@ -60,17 +60,23 @@ struct InstanceDefine {
     std::vector<Property> const property_;
     std::vector<Method> const   methods_;
 
+    // script helper
+    using InstanceEqualsCallback = bool (*)(void* lhs, void* rhs);
+    InstanceEqualsCallback const equals_{nullptr};
+
     // internal use only
     JSClassID const classId_{JS_INVALID_CLASS_ID};
 
     explicit InstanceDefine(
-        InstanceConstructor   constructor,
-        std::vector<Property> property,
-        std::vector<Method>   functions
+        InstanceConstructor    constructor,
+        std::vector<Property>  property,
+        std::vector<Method>    functions,
+        InstanceEqualsCallback equals
     )
     : constructor_(std::move(constructor)),
       property_(std::move(property)),
-      methods_(std::move(functions)) {}
+      methods_(std::move(functions)),
+      equals_(equals) {}
 };
 
 

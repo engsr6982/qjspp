@@ -192,6 +192,16 @@ TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
             debug(`baseBar: ${my.baseBar()}`);
         )"));
     }
+
+    SECTION("$equals") {
+        REQUIRE_NOTHROW(engine_->eval(R"(
+            let lhs = new Derived(1234);
+            let rhs = new Derived(5678);
+            globalThis.val = lhs.$equals(rhs);
+        )"));
+        REQUIRE(engine_->globalThis().has("val") == true);
+        REQUIRE(engine_->globalThis().get("val").asBoolean().value() == false);
+    }
 }
 
 qjspp::ModuleDefine NativeModuleDef =

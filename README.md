@@ -2,6 +2,8 @@
 
 将 QuickJs(QuickJs-ng) 包装成现代 C++库，并支持类绑定和模块注册。
 
+## 功能特性
+
 ## 行为
 
 ### `QJSPP_SKIP_INSTANCE_CALL_CHECK_CLASS_DEFINE`
@@ -40,3 +42,13 @@ if (kInstanceCallCheckClassDefine && typed->define_ != data2 && typed->define_->
 
 > 默认情况下，qjspp 会将 `Symbol.toStringTag` 属性修改为 `define_->name_`，以方便调试  
 > https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Symbol/toStringTag
+
+### `QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO`
+
+- 默认状态：关闭
+
+启用后，qjspp 将不会对所有绑定的实例类生成 `$equals` 方法。
+
+> 默认情况下，qjspp 会为所有绑定的实例类生成 `$equals` 方法，用于比较两个实例是否相等。  
+> 其行为是：在有可调用的 `operator==` 时，使用 `operator==`，否则直接比较指针地址是否相等  
+> 对于 `operator==` qjspp 要求其返回值必须为 `bool` 类型，参数仅支持指针和引用(即: `A&`、`A*`、`A const&`、`A const*`)
