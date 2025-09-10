@@ -723,7 +723,11 @@ void JsEngine::implStaticRegister(Object& ctor, StaticDefine const& def) {
 }
 Object JsEngine::implRegisterEnum(EnumDefine const& def) {
     Object obj{};
-    obj.defineOwnProperty("$name", String{def.name_}, PropertyAttributes::DontDelete | PropertyAttributes::ReadOnly);
+    obj.defineOwnProperty(
+        kEnumNameHelperProperty,
+        String{def.name_},
+        PropertyAttributes::DontDelete | PropertyAttributes::ReadOnly
+    );
     for (auto const& [name, value] : def.entries_) {
         obj.defineOwnProperty(name, Number{value}, PropertyAttributes::DontDelete | PropertyAttributes::ReadOnly);
     }

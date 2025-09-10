@@ -181,6 +181,8 @@ private:
     static constexpr bool kInstanceCallCheckClassDefine = false; // 跳过实例调用时检查类定义
 #endif
 
+    static constexpr auto kEnumNameHelperProperty = "$name";
+
     // helpers
     JSClassID kPointerClassId{JS_INVALID_CLASS_ID};
     JSClassID kFunctionDataClassId{JS_INVALID_CLASS_ID}; // Function
