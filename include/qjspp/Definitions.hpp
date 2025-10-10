@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 
+#include "JsManagedResource.hpp"
 
 namespace qjspp {
 
