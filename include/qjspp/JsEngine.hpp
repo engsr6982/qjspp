@@ -15,12 +15,12 @@
 
 namespace qjspp {
 
-struct WrappedResource;
+struct JsManagedResource;
 
 
 class JsEngine final {
 public:
-    QJSPP_DISALLOW_COPY(JsEngine);
+    QJSPP_DISABLE_COPY(JsEngine);
     explicit JsEngine();
     ~JsEngine();
 
@@ -58,14 +58,14 @@ public:
      * @param def 类定义
      * @note 默认此函数会注册的 native 类挂载到 JavaScript 的全局对象(globalThis)上
      */
-    Object registerNativeClass(ClassDefine const& def);
+    Object registerClass(ClassDefine const& def);
 
     /**
      * 注册一个原生模块
      * @param module 模块
      * @note 注册为模块后，需要使用 import xx from "<name>" 导入
      */
-    void registerNativeModule(ModuleDefine const& module);
+    void registerModule(ModuleDefine const& module);
 
     /**
      * 注册一个枚举
@@ -81,7 +81,7 @@ public:
     /**
      * 创建一个新的 JavaScript 类实例
      */
-    Object newInstance(ClassDefine const& def, std::unique_ptr<WrappedResource>&& wrappedResource);
+    Object newInstance(ClassDefine const& def, std::unique_ptr<JsManagedResource>&& managedResource);
 
     /**
      * 创建一个新的 JavaScript 类实例
@@ -139,7 +139,7 @@ public:
         void (*)(JsEngine* engine, JsException const& exception, UnhandledExceptionOrigin origin);
 
     void setUnhandledJsExceptionCallback(UnhandledJsExceptionCallback cb);
-    void invokeUnhandledJsExceptionCallback(JsException const& exception, UnhandledExceptionOrigin origin);
+    void invokeUnhandledJsException(JsException const& exception, UnhandledExceptionOrigin origin);
 
 private:
     using RawFunctionCallback = Value (*)(const Arguments&, void*, void*, bool constructCall);
@@ -147,7 +147,7 @@ private:
     Function createQuickJsCFunction(void* data1, void* data2, RawFunctionCallback cb);
     Object   createConstructor(ClassDefine const& def);
     Object   createPrototype(ClassDefine const& def);
-    void     implStaticRegister(Object& ctor, StaticDefine const& def);
+    void     implStaticRegister(Object& ctor, StaticMemberDefine const& def);
     Object   implRegisterEnum(EnumDefine const& def);
 
     ::JSRuntime* runtime_{nullptr};
@@ -200,7 +200,7 @@ private:
 
     class PauseGc final {
         JsEngine* engine_;
-        QJSPP_DISALLOW_COPY_AND_MOVE(PauseGc);
+        QJSPP_DISABLE_COPY_MOVE(PauseGc);
 
     public:
         explicit PauseGc(JsEngine* engine);

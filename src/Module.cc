@@ -17,8 +17,8 @@ ModuleDefine::ModuleDefine(
     std::vector<EnumDefine const*>  enum_
 )
 : name_(std::move(name)),
-  class_(std::move(class_)),
-  enum_(std::move(enum_)) {}
+  refClass_(std::move(class_)),
+  refEnum_(std::move(enum_)) {}
 
 JSModuleDef* ModuleDefine::init(JsEngine* engine) const {
     auto module = JS_NewCModule(engine->context_, name_.c_str(), [](JSContext* ctx, JSModuleDef* module) -> int {
@@ -58,18 +58,18 @@ JSModuleDef* ModuleDefine::init(JsEngine* engine) const {
 }
 
 void ModuleDefine::_performExportDeclarations(JsEngine* engine, JSModuleDef* module) const {
-    for (auto& c : class_) {
+    for (auto& c : refClass_) {
         JsException::check(JS_AddModuleExport(engine->context_, module, c->name_.c_str()));
     }
-    for (auto& e : enum_) {
+    for (auto& e : refEnum_) {
         JsException::check(JS_AddModuleExport(engine->context_, module, e->name_.c_str()));
     }
 }
 void ModuleDefine::_performExports(JsEngine* engine, JSContext* ctx, JSModuleDef* module) const {
-    for (auto& def : class_) {
+    for (auto& def : refClass_) {
         Value ctor{}; // undefined
 
-        if (def->hasInstanceConstructor()) {
+        if (def->hasConstructor()) {
             auto iter = engine->nativeInstanceClasses_.find(def);
             if (iter != engine->nativeInstanceClasses_.end()) {
                 ctor = Value::wrap<Value>(iter->second.first);
@@ -87,7 +87,7 @@ void ModuleDefine::_performExports(JsEngine* engine, JSContext* ctx, JSModuleDef
 
         JsException::check(JS_SetModuleExport(ctx, module, def->name_.c_str(), JS_DupValue(ctx, Value::extract(ctor))));
     }
-    for (auto& def : enum_) {
+    for (auto& def : refEnum_) {
         if (!engine->nativeEnums_.contains(def)) {
             engine->implRegisterEnum(*def); // 无缓存进行注册
         }

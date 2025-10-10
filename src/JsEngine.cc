@@ -30,8 +30,8 @@ void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
 
     auto opaque = JS_GetOpaque(val, classID);
     if (opaque) {
-        auto wrapped = static_cast<WrappedResource*>(opaque);
-        assert(wrapped->define_->instanceDefine_.classId_ == classID); // 校验类ID是否匹配
+        auto wrapped = static_cast<JsManagedResource*>(opaque);
+        assert(wrapped->define_->instanceMemberDef_.classId_ == classID); // 校验类ID是否匹配
         auto engine = const_cast<JsEngine*>(wrapped->engine_);
 
         PauseGc pauseGc(engine); // 暂停GC
@@ -372,7 +372,7 @@ TaskQueue* JsEngine::getTaskQueue() const { return queue_.get(); }
 
 void JsEngine::setData(std::shared_ptr<void> data) { userData_ = std::move(data); }
 
-Object JsEngine::registerNativeClass(ClassDefine const& def) {
+Object JsEngine::registerClass(ClassDefine const& def) {
     auto ctor = createJavaScriptClassOf(def);
     globalThis().set(def.name_, ctor);
     return ctor;
@@ -382,7 +382,7 @@ Object JsEngine::registerEnum(EnumDefine const& def) {
     globalThis().set(def.name_, obj);
     return obj;
 }
-void JsEngine::registerNativeModule(ModuleDefine const& module) {
+void JsEngine::registerModule(ModuleDefine const& module) {
     if (nativeModules_.contains(module.name_)) {
         throw std::logic_error("ES module " + module.name_ + " already registered");
     }
@@ -393,11 +393,11 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
         throw std::logic_error("Native class " + def.name_ + " already registered");
     }
 
-    bool const instance = def.hasInstanceConstructor();
+    bool const instance = def.hasConstructor();
     if (!instance) {
         // 非实例类，挂载为 Object 的静态属性
         auto object = Object{};
-        implStaticRegister(object, def.staticDefine_);
+        implStaticRegister(object, def.staticMemberDef_);
 #ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
         patchToStringTag(object, def.name_);
 #endif
@@ -406,8 +406,8 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
     }
 
 
-    if (def.instanceDefine_.classId_ == JS_INVALID_CLASS_ID) {
-        auto id = const_cast<JSClassID*>(&def.instanceDefine_.classId_);
+    if (def.instanceMemberDef_.classId_ == JS_INVALID_CLASS_ID) {
+        auto id = const_cast<JSClassID*>(&def.instanceMemberDef_.classId_);
         JS_NewClassID(runtime_, id);
     }
 
@@ -415,14 +415,14 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
     jsDef.class_name = def.name_.c_str();
     jsDef.finalizer  = &kTemplateClassFinalizer;
 
-    JS_NewClass(runtime_, def.instanceDefine_.classId_, &jsDef);
+    JS_NewClass(runtime_, def.instanceMemberDef_.classId_, &jsDef);
 
     auto ctor  = createConstructor(def);
     auto proto = createPrototype(def);
-    implStaticRegister(ctor, def.staticDefine_);
+    implStaticRegister(ctor, def.staticMemberDef_);
 
     JS_SetConstructor(context_, Value::extract(ctor), Value::extract(proto));
-    JS_SetClassProto(context_, def.instanceDefine_.classId_, JS_DupValue(context_, Value::extract(proto)));
+    JS_SetClassProto(context_, def.instanceMemberDef_.classId_, JS_DupValue(context_, Value::extract(proto)));
 
 #ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
     patchToStringTag(ctor, def.name_);
@@ -437,20 +437,19 @@ Object JsEngine::createJavaScriptClassOf(ClassDefine const& def) {
         }
     );
 
-    if (def.extends_ != nullptr) {
-        if (!def.extends_->hasInstanceConstructor()) {
-            throw std::logic_error("Native class " + def.name_ + " extends non-instance class " + def.extends_->name_);
+    if (def.base_ != nullptr) {
+        if (!def.base_->hasConstructor()) {
+            throw std::logic_error("Native class " + def.name_ + " extends non-instance class " + def.base_->name_);
         }
-        auto iter = nativeInstanceClasses_.find(def.extends_);
+        auto iter = nativeInstanceClasses_.find(def.base_);
         if (iter == nativeInstanceClasses_.end()) {
             throw std::logic_error(
-                def.name_ + " cannot inherit from " + def.extends_->name_
-                + " because the parent class is not registered."
+                def.name_ + " cannot inherit from " + def.base_->name_ + " because the parent class is not registered."
             );
         }
         // Child.prototype.__proto__ = Parent.prototype;
-        assert(def.extends_->instanceDefine_.classId_ != JS_INVALID_CLASS_ID);
-        auto base = JS_GetClassProto(context_, def.extends_->instanceDefine_.classId_);
+        assert(def.base_->instanceMemberDef_.classId_ != JS_INVALID_CLASS_ID);
+        auto base = JS_GetClassProto(context_, def.base_->instanceMemberDef_.classId_);
         auto code = JS_SetPrototype(context_, Value::extract(proto), base);
         JS_FreeValue(context_, base);
         JsException::check(code);
@@ -524,7 +523,8 @@ Object JsEngine::createConstructor(ClassDefine const& def) {
             JSValue proto = JS_GetPropertyStr(engine->context_, args.thiz_, "prototype");
             JsException::check(proto);
 
-            auto obj = JS_NewObjectProtoClass(engine->context_, proto, static_cast<int>(def->instanceDefine_.classId_));
+            auto obj =
+                JS_NewObjectProtoClass(engine->context_, proto, static_cast<int>(def->instanceMemberDef_.classId_));
             JS_FreeValue(engine->context_, proto);
             JsException::check(obj);
 
@@ -545,15 +545,15 @@ Object JsEngine::createConstructor(ClassDefine const& def) {
             if (!instance) { // construct from js
                 auto& unConst = const_cast<Arguments&>(args);
                 unConst.thiz_ = obj;
-                instance      = (def->instanceDefine_.constructor_)(args);
+                instance      = (def->instanceMemberDef_.constructor_)(args);
                 if (!instance) {
                     throw JsException{"This native class cannot be constructed."};
                 }
             }
 
-            void* wrapped = constructFromJs ? def->wrap(instance).release() : instance;
+            void* wrapped = constructFromJs ? def->manage(instance).release() : instance;
             {
-                auto typed     = static_cast<WrappedResource*>(wrapped);
+                auto typed     = static_cast<JsManagedResource*>(wrapped);
                 typed->define_ = def;
                 typed->engine_ = engine;
 
@@ -574,7 +574,7 @@ bool ClassDefineCheckHelper(ClassDefine const* def, ClassDefine const* target) {
         if (def == target) {
             return true;
         }
-        def = def->extends_;
+        def = def->base_;
     }
     return false;
 }
@@ -588,7 +588,7 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
         createQuickJsCFunction(defPtr, nullptr, [](Arguments const& args, void* data1, void*, bool) -> Value {
             auto classID = JS_GetClassID(args.thiz_);
             assert(classID != JS_INVALID_CLASS_ID);
-            auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
+            auto typed = static_cast<JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
             auto thiz  = (*typed)();
             if (thiz == nullptr) {
                 throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
@@ -611,20 +611,20 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
 
             auto rhsInstance = args.engine_->getNativeInstanceOf(rhs.asObject(), *typed->define_);
 
-            bool const val = (*typed->define_->instanceDefine_.equals_)(thiz, rhsInstance);
+            bool const val = (*typed->define_->instanceMemberDef_.equals_)(thiz, rhsInstance);
             return Boolean{val};
         })
     );
 #endif // QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO
 
-    for (auto&& method : def.instanceDefine_.methods_) {
+    for (auto&& method : def.instanceMemberDef_.methods_) {
         auto fn = createQuickJsCFunction(
-            const_cast<InstanceDefine::Method*>(&method),
+            const_cast<InstanceMemberDefine::Method*>(&method),
             defPtr,
             [](Arguments const& args, void* data1, void* data2, bool) -> Value {
                 auto classID = JS_GetClassID(args.thiz_);
                 assert(classID != JS_INVALID_CLASS_ID);
-                auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
+                auto typed = static_cast<JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
                 auto thiz  = (*typed)();
                 if (thiz == nullptr) {
                     throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
@@ -635,24 +635,24 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                 }
                 const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
 
-                auto def = static_cast<InstanceDefine::Method*>(data1);
+                auto def = static_cast<InstanceMemberDefine::Method*>(data1);
                 return (def->callback_)(thiz, args);
             }
         );
         prototype.set(method.name_, fn);
     }
 
-    for (auto&& prop : def.instanceDefine_.property_) {
+    for (auto&& prop : def.instanceMemberDef_.property_) {
         Value getter;
         Value setter;
 
         getter = createQuickJsCFunction(
-            const_cast<InstanceDefine::Property*>(&prop),
+            const_cast<InstanceMemberDefine::Property*>(&prop),
             defPtr,
             [](Arguments const& args, void* data1, void* data2, bool) -> Value {
                 auto classID = JS_GetClassID(args.thiz_);
                 assert(classID != JS_INVALID_CLASS_ID);
-                auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
+                auto typed = static_cast<JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
                 auto thiz  = (*typed)();
                 if (thiz == nullptr) {
                     throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
@@ -663,19 +663,19 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                 }
                 const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
 
-                auto def = static_cast<InstanceDefine::Property*>(data1);
+                auto def = static_cast<InstanceMemberDefine::Property*>(data1);
                 return (def->getter_)(thiz, args);
             }
         );
 
         if (prop.setter_) {
             setter = createQuickJsCFunction(
-                const_cast<InstanceDefine::Property*>(&prop),
+                const_cast<InstanceMemberDefine::Property*>(&prop),
                 defPtr,
                 [](Arguments const& args, void* data1, void* data2, bool) -> Value {
                     auto classID = JS_GetClassID(args.thiz_);
                     assert(classID != JS_INVALID_CLASS_ID);
-                    auto typed = static_cast<WrappedResource*>(JS_GetOpaque(args.thiz_, classID));
+                    auto typed = static_cast<JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
                     auto thiz  = (*typed)();
                     if (thiz == nullptr) {
                         throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
@@ -686,7 +686,7 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                     }
                     const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
 
-                    auto def = static_cast<InstanceDefine::Property*>(data1);
+                    auto def = static_cast<InstanceMemberDefine::Property*>(data1);
                     (def->setter_)(thiz, args);
                     return {}; // undefined
                 }
@@ -707,13 +707,13 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
     }
     return prototype;
 }
-void JsEngine::implStaticRegister(Object& ctor, StaticDefine const& def) {
+void JsEngine::implStaticRegister(Object& ctor, StaticMemberDefine const& def) {
     for (auto&& fnDef : def.functions_) {
         auto fn = createQuickJsCFunction(
-            const_cast<StaticDefine::Function*>(&fnDef),
+            const_cast<StaticMemberDefine::Function*>(&fnDef),
             nullptr,
             [](Arguments const& args, void* data1, void*, bool) -> Value {
-                auto def = static_cast<StaticDefine::Function*>(data1);
+                auto def = static_cast<StaticMemberDefine::Function*>(data1);
                 return (def->callback_)(args);
             }
         );
@@ -725,19 +725,19 @@ void JsEngine::implStaticRegister(Object& ctor, StaticDefine const& def) {
         Value setter;
 
         getter = createQuickJsCFunction(
-            const_cast<StaticDefine::Property*>(&propDef),
+            const_cast<StaticMemberDefine::Property*>(&propDef),
             nullptr,
             [](Arguments const&, void* data1, void*, bool) -> Value {
-                auto def = static_cast<StaticDefine::Property*>(data1);
+                auto def = static_cast<StaticMemberDefine::Property*>(data1);
                 return (def->getter_)();
             }
         );
         if (propDef.setter_) {
             setter = createQuickJsCFunction(
-                const_cast<StaticDefine::Property*>(&propDef),
+                const_cast<StaticMemberDefine::Property*>(&propDef),
                 nullptr,
                 [](Arguments const& args, void* data1, void*, bool) -> Value {
-                    auto def = static_cast<StaticDefine::Property*>(data1);
+                    auto def = static_cast<StaticMemberDefine::Property*>(data1);
                     (def->setter_)(args[0]);
                     return {};
                 }
@@ -787,7 +787,7 @@ void JsEngine::patchToStringTag(Object& obj, std::string_view tag) const {
 #endif
 
 
-Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<WrappedResource>&& wrappedResource) {
+Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<JsManagedResource>&& managedResource) {
     auto iter = nativeInstanceClasses_.find(&def);
     if (iter == nativeInstanceClasses_.end()) {
         throw JsException{
@@ -796,7 +796,7 @@ Object JsEngine::newInstance(ClassDefine const& def, std::unique_ptr<WrappedReso
     }
     auto instance = JS_NewObjectClass(context_, static_cast<int>(kPointerClassId));
     JsException::check(instance);
-    JS_SetOpaque(instance, wrappedResource.release());
+    JS_SetOpaque(instance, managedResource.release());
 
     std::array<JSValue, 1> args = {instance};
 
@@ -822,13 +822,13 @@ void* JsEngine::getNativeInstanceOf(Object const& thiz, ClassDefine const& def) 
     if (!isInstanceOf(thiz, def)) {
         return nullptr;
     }
-    auto wrapped = static_cast<WrappedResource*>(JS_GetOpaque(Value::extract(thiz), def.instanceDefine_.classId_));
+    auto wrapped = static_cast<JsManagedResource*>(JS_GetOpaque(Value::extract(thiz), def.instanceMemberDef_.classId_));
     return (*wrapped)();
 }
 
 void JsEngine::setUnhandledJsExceptionCallback(UnhandledJsExceptionCallback cb) { unhandledJsExceptionCallback_ = cb; }
 
-void JsEngine::invokeUnhandledJsExceptionCallback(JsException const& exception, UnhandledExceptionOrigin origin) {
+void JsEngine::invokeUnhandledJsException(JsException const& exception, UnhandledExceptionOrigin origin) {
     if (unhandledJsExceptionCallback_) {
         unhandledJsExceptionCallback_(this, exception, origin);
     }

@@ -1,6 +1,6 @@
 #pragma once
 #include "JsEngine.hpp"
-#include "qjspp/Binding.hpp"
+#include "qjspp/JsManagedResource.hpp"
 #include "qjspp/Values.hpp"
 
 namespace qjspp {
@@ -14,12 +14,12 @@ std::shared_ptr<T> JsEngine::getData() const {
 
 template <typename T>
 Object JsEngine::newInstanceOfRaw(ClassDefine const& def, T* instance) {
-    return newInstance(def, std::move(def.wrap(instance)));
+    return newInstance(def, std::move(def.manage(instance)));
 }
 
 template <typename T>
 Object JsEngine::newInstanceOfView(ClassDefine const& def, T* instance) {
-    auto wrap = WrappedResource::make(instance, [](void* res) -> void* { return res; }, nullptr);
+    auto wrap = JsManagedResource::make(instance, [](void* res) -> void* { return res; }, nullptr);
     return newInstance(def, std::move(wrap));
 }
 
@@ -33,7 +33,7 @@ Object JsEngine::newInstanceOfView(ClassDefine const& def, T* instance, Object o
     };
     auto control = new Control{ownerJs, instance};
 
-    auto wrap = WrappedResource::make(
+    auto wrap = JsManagedResource::make(
         control,
         [](void* res) -> void* { return static_cast<Control*>(res)->nativeInst; },
         [](void* res) -> void { delete static_cast<Control*>(res); }
@@ -53,7 +53,7 @@ Object JsEngine::newInstanceOfShared(ClassDefine const& def, std::shared_ptr<T>&
         explicit Control(std::shared_ptr<T>&& instance) : instance(std::move(instance)) {}
     };
     auto control = new Control{std::move(instance)};
-    auto wrap    = WrappedResource::make(
+    auto wrap    = JsManagedResource::make(
         control,
         [](void* res) -> void* { return static_cast<Control*>(res)->instance.get(); },
         [](void* res) -> void { delete static_cast<Control*>(res); }
@@ -68,7 +68,7 @@ Object JsEngine::newInstanceOfWeak(ClassDefine const& def, std::weak_ptr<T>&& in
         explicit Control(std::weak_ptr<T>&& instance) : instance(std::move(instance)) {}
     };
     auto control = new Control{std::move(instance)};
-    auto wrap    = WrappedResource::make(
+    auto wrap    = JsManagedResource::make(
         control,
         [](void* res) -> void* {
             // TODO: 临时 shared_ptr 裸指针不安全，需要持久化或在 wrapper 后清理

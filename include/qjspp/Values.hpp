@@ -43,7 +43,7 @@ private:                                                                        
 
 #define SPECIALIZE_RAII(TYPE)                                                                                          \
 public:                                                                                                                \
-    QJSPP_DISALLOW_NEW();                                                                                              \
+    QJSPP_DISABLE_NEW();                                                                                               \
                                                                                                                        \
     ~TYPE();                                                                                                           \
                                                                                                                        \
@@ -303,7 +303,7 @@ class ScopedValue final {
     Value     val_{};
 
 public:
-    QJSPP_DISALLOW_NEW();
+    QJSPP_DISABLE_NEW();
 
     ScopedValue() = default;
     ScopedValue(Value value); // need active JsScope
@@ -328,11 +328,11 @@ public:
 
 
 class Arguments final {
-    JsEngine*               engine_;
-    JSValueConst            thiz_;
-    int                     length_;
-    JSValueConst*           args_;
-    struct WrappedResource* wrap_{nullptr};
+    JsEngine*                 engine_;
+    JSValueConst              thiz_;
+    int                       length_;
+    JSValueConst*             args_;
+    struct JsManagedResource* wrap_{nullptr};
 
     friend class JsEngine;
     friend class Function;
@@ -340,7 +340,7 @@ class Arguments final {
     explicit Arguments(JsEngine* engine, JSValueConst thiz, int length, JSValueConst* args);
 
 public:
-    QJSPP_DISALLOW_COPY_AND_MOVE(Arguments);
+    QJSPP_DISABLE_COPY_MOVE(Arguments);
 
     [[nodiscard]] JsEngine* engine() const;
 
@@ -353,8 +353,8 @@ public:
     // Obtain internal resource management wrapper.
     // This function is only used internally.
     // note: This resource is only valid during instance class calls (method, property).
-    [[nodiscard]] bool                    hasWrappedResource() const;
-    [[nodiscard]] struct WrappedResource* getWrappedResource() const;
+    [[nodiscard]] bool                      hasWrappedResource() const;
+    [[nodiscard]] struct JsManagedResource* getWrappedResource() const;
 
     Value operator[](size_t index) const;
 };

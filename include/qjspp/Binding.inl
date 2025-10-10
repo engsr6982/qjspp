@@ -138,7 +138,7 @@ inline decltype(auto) WrapCallback(Value const& value) {
         } catch (JsException const& e) {
 #ifndef QJSPP_CALLBACK_ALWAYS_THROW_IF_NEED_RETURN_VALUE
             if constexpr (std::is_void_v<R> || std::is_default_constructible_v<R>) {
-                engine->invokeUnhandledJsExceptionCallback(e, UnhandledExceptionOrigin::Callback);
+                engine->invokeUnhandledJsException(e, UnhandledExceptionOrigin::Callback);
                 if constexpr (!std::is_void_v<R>) return R{};
             } else {
                 throw std::runtime_error{
@@ -349,18 +349,18 @@ std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(T
 
 
 template <typename C>
-InstanceDefine::InstanceEqualsCallback bindInstanceEqualsImpl(std::false_type) {
+InstanceMemberDefine::InstanceEqualsCallback bindInstanceEqualsImpl(std::false_type) {
     return [](void* lhs, void* rhs) -> bool { return lhs == rhs; };
 }
 template <typename C>
-InstanceDefine::InstanceEqualsCallback bindInstanceEqualsImpl(std::true_type) {
+InstanceMemberDefine::InstanceEqualsCallback bindInstanceEqualsImpl(std::true_type) {
     return [](void* lhs, void* rhs) -> bool {
         if (!lhs || !rhs) return false;
         return *static_cast<C*>(lhs) == *static_cast<C*>(rhs);
     };
 }
 template <typename C>
-InstanceDefine::InstanceEqualsCallback bindInstanceEquals() {
+InstanceMemberDefine::InstanceEqualsCallback bindInstanceEquals() {
     // use tag dispatch to fix MSVC pre name lookup or overload resolution
     return bindInstanceEqualsImpl<C>(std::bool_constant<HasEquality<C>>{});
 }

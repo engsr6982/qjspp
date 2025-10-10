@@ -30,8 +30,8 @@ class Arguments;
 
 struct ModuleDefine;
 
-struct StaticDefine;
-struct InstanceDefine;
+struct StaticMemberDefine;
+struct InstanceMemberDefine;
 class ClassDefine;
 
 

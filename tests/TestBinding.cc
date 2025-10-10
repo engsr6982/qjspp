@@ -51,7 +51,7 @@ qjspp::ClassDefine const UtilDefine =
 
 TEST_CASE_METHOD(TestEngineFixture, "Static Binding") {
     qjspp::JsScope scope{engine_};
-    engine_->registerNativeClass(UtilDefine);
+    engine_->registerClass(UtilDefine);
 
     REQUIRE(engine_->eval("Util.add(1, 2)").asNumber().getInt32() == 3);
     REQUIRE(engine_->eval("Util.append('a', 'b')").asString().value() == "ab");
@@ -128,8 +128,8 @@ qjspp::ClassDefine const DerivedDefine = qjspp::defineClass<Derived>("Derived")
 
 TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
     qjspp::JsScope scope{engine_};
-    engine_->registerNativeClass(BaseDefine);
-    engine_->registerNativeClass(DerivedDefine);
+    engine_->registerClass(BaseDefine);
+    engine_->registerClass(DerivedDefine);
 
     engine_->globalThis().set("debug", qjspp::Function{[](qjspp::Arguments const& args) -> qjspp::Value {
                                   std::ostringstream oss;
@@ -205,12 +205,12 @@ TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
 }
 
 qjspp::ModuleDefine NativeModuleDef =
-    qjspp::defineModule("native").exportClass(UtilDefine).exportClass(BaseDefine).exportClass(DerivedDefine).build();
+    qjspp::defineModule("native").addClass(UtilDefine).addClass(BaseDefine).addClass(DerivedDefine).build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Module Binding") {
     qjspp::JsScope scope{engine_};
 
-    engine_->registerNativeModule(NativeModuleDef);
+    engine_->registerModule(NativeModuleDef);
 
     REQUIRE_NOTHROW(
         engine_->eval("import { Base } from 'native'; Base.baseTrue();", "<eval>", qjspp::JsEngine::EvalType::kModule)
@@ -257,7 +257,7 @@ qjspp::ClassDefine TestFormDefine = qjspp::defineClass<TestForm>("TestForm")
 TEST_CASE_METHOD(TestEngineFixture, "Test Callback") {
     qjspp::JsScope scope{engine_};
 
-    engine_->registerNativeClass(TestFormDefine);
+    engine_->registerClass(TestFormDefine);
     engine_->globalThis().set("assert", qjspp::Function{&jsassert});
 
     engine_->eval(R"(
@@ -292,7 +292,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Abstract Class") {
 
     auto impl = std::make_shared<FooImpl>();
 
-    engine_->registerNativeClass(AbstractFooDef);
+    engine_->registerClass(AbstractFooDef);
     engine_->globalThis().set("assert", qjspp::Function{&jsassert});
     engine_->globalThis().set("getAbstractFoo", qjspp::Function{[impl](qjspp::Arguments const& args) -> qjspp::Value {
                                   REQUIRE(args.length() == 0);
@@ -330,7 +330,7 @@ qjspp::ClassDefine BuilderDefine = qjspp::defineClass<Builder>("Builder")
 TEST_CASE_METHOD(TestEngineFixture, "Builder Pattern") {
     qjspp::JsScope scope{engine_};
 
-    engine_->registerNativeClass(BuilderDefine);
+    engine_->registerClass(BuilderDefine);
     engine_->globalThis().set("assert", qjspp::Function{&jsassert});
 
     REQUIRE_NOTHROW(engine_->eval(R"(
@@ -366,12 +366,12 @@ TEST_CASE_METHOD(TestEngineFixture, "Enum Bind") {
     REQUIRE(engine_->eval("Color.Blue").asNumber().getInt32() == 2);
 }
 
-qjspp::ModuleDefine ColorModuleDef_ = qjspp::defineModule("Color").exportEnum(ColorDef_).build();
+qjspp::ModuleDefine ColorModuleDef_ = qjspp::defineModule("Color").addEnum(ColorDef_).build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Enum Module Bind") {
     qjspp::JsScope scope{engine_};
 
-    engine_->registerNativeModule(ColorModuleDef_);
+    engine_->registerModule(ColorModuleDef_);
     engine_->globalThis().set("assert", qjspp::Function{&jsassert});
 
     REQUIRE_NOTHROW(engine_->eval(

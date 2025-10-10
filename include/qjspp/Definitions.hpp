@@ -8,7 +8,7 @@
 namespace qjspp {
 
 
-struct StaticDefine {
+struct StaticMemberDefine {
     struct Property {
         std::string const    name_;
         GetterCallback const getter_;
@@ -31,12 +31,12 @@ struct StaticDefine {
     std::vector<Property> const property_;
     std::vector<Function> const functions_;
 
-    explicit StaticDefine(std::vector<Property> property, std::vector<Function> functions)
+    explicit StaticMemberDefine(std::vector<Property> property, std::vector<Function> functions)
     : property_(std::move(property)),
       functions_(std::move(functions)) {}
 };
 
-struct InstanceDefine {
+struct InstanceMemberDefine {
     struct Property {
         std::string const            name_;
         InstanceGetterCallback const getter_;
@@ -67,7 +67,7 @@ struct InstanceDefine {
     // internal use only
     JSClassID const classId_{JS_INVALID_CLASS_ID};
 
-    explicit InstanceDefine(
+    explicit InstanceMemberDefine(
         InstanceConstructor    constructor,
         std::vector<Property>  property,
         std::vector<Method>    functions,
@@ -82,38 +82,34 @@ struct InstanceDefine {
 
 class ClassDefine {
 public:
-    std::string const    name_;
-    StaticDefine const   staticDefine_;
-    InstanceDefine const instanceDefine_;
-    ClassDefine const*   extends_{nullptr};
+    std::string const          name_;
+    StaticMemberDefine const   staticMemberDef_;
+    InstanceMemberDefine const instanceMemberDef_;
+    ClassDefine const*         base_{nullptr};
 
-    [[nodiscard]] inline bool hasInstanceConstructor() const { return instanceDefine_.constructor_ != nullptr; }
+    [[nodiscard]] inline bool hasConstructor() const { return instanceMemberDef_.constructor_ != nullptr; }
 
     // 由于采用 void* 提升了运行时的灵活性，但缺少了类型信息。
-    // delete void* 是不安全的，所以需要此辅助方法，以生成合理的 deleter。
-    // 此回调仅在 JavaScript new 时调用，用于包装 InstanceConstructor 返回的实例 (T*)
-    // The use of void* enhances runtime flexibility but lacks type information.
-    // Deleting a void* is unsafe, so this helper method is needed to generate a reasonable deleter.
-    // This callback is only invoked when using JavaScript's `new` operator, and it is used to wrap the instance (T*)
-    //  returned by InstanceConstructor.
-    using TypedWrappedResourceFactory = std::unique_ptr<struct WrappedResource> (*)(void* instance);
-    TypedWrappedResourceFactory const mJsNewInstanceWrapFactory{nullptr};
+    // delete void* 是不安全的，因此需要此辅助回调生成合理的 finalizer。
+    // 此回调仅在 JavaScript 使用 `new` 构造时调用，用于包装 InstanceConstructor 返回的实例 (T*)。
+    using ManagedResourceFactory = std::unique_ptr<struct JsManagedResource> (*)(void* instance);
+    ManagedResourceFactory const factory_{nullptr};
 
-    [[nodiscard]] inline auto wrap(void* instance) const { return mJsNewInstanceWrapFactory(instance); }
+    [[nodiscard]] inline auto manage(void* instance) const { return factory_(instance); }
 
 private:
     explicit ClassDefine(
-        std::string                 name,
-        StaticDefine                static_,
-        InstanceDefine              instance,
-        ClassDefine const*          parent,
-        TypedWrappedResourceFactory factory
+        std::string            name,
+        StaticMemberDefine     staticDef,
+        InstanceMemberDefine   instanceDef,
+        ClassDefine const*     base,
+        ManagedResourceFactory factory
     )
     : name_(std::move(name)),
-      staticDefine_(std::move(static_)),
-      instanceDefine_(std::move(instance)),
-      extends_(parent),
-      mJsNewInstanceWrapFactory(factory) {}
+      staticMemberDef_(std::move(staticDef)),
+      instanceMemberDef_(std::move(instanceDef)),
+      base_(base),
+      factory_(factory) {}
 
     template <typename>
     friend struct ClassDefineBuilder;
@@ -135,53 +131,6 @@ public:
     explicit EnumDefine(std::string name, std::vector<Entry> entries)
     : name_(std::move(name)),
       entries_(std::move(entries)) {}
-};
-
-
-struct WrappedResource final {
-    using ResGetter  = void* (*)(void* resource); // return instance (T* -> void*)
-    using ResDeleter = void (*)(void* resource);
-
-private:
-    void*            resource_{nullptr};
-    ResGetter const  getter_{nullptr};
-    ResDeleter const deleter_{nullptr};
-
-    // internal use only
-    ClassDefine const* define_{nullptr};
-    JsEngine const*    engine_{nullptr};
-    bool const         constructFromJs_{false};
-
-    friend class JsEngine;
-
-public:
-    inline void* operator()() const {
-        if (resource_ == nullptr) return nullptr;
-        return getter_(resource_);
-    }
-
-    inline void freeResource() {
-        if (deleter_ != nullptr && resource_ != nullptr) {
-            deleter_(resource_);
-            resource_ = nullptr;
-        }
-    }
-
-    QJSPP_DISALLOW_COPY(WrappedResource);
-    explicit WrappedResource() = delete;
-
-    explicit WrappedResource(void* resource, ResGetter getter, ResDeleter deleter)
-    : resource_(resource),
-      getter_(getter),
-      deleter_(deleter) {}
-
-    ~WrappedResource() { freeResource(); }
-
-    template <typename... Args>
-        requires std::constructible_from<WrappedResource, Args...>
-    static inline std::unique_ptr<WrappedResource> make(Args&&... args) {
-        return std::make_unique<WrappedResource>(std::forward<Args>(args)...);
-    }
 };
 
 

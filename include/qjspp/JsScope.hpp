@@ -13,8 +13,8 @@ public:
     explicit JsScope(JsEngine* engine);
     ~JsScope();
 
-    QJSPP_DISALLOW_COPY_AND_MOVE(JsScope);
-    QJSPP_DISALLOW_NEW();
+    QJSPP_DISABLE_COPY_MOVE(JsScope);
+    QJSPP_DISABLE_NEW();
 
     static JsEngine* currentEngine();
 
@@ -42,8 +42,8 @@ public:
     explicit ExitJsScope();
     ~ExitJsScope();
 
-    QJSPP_DISALLOW_COPY_AND_MOVE(ExitJsScope);
-    QJSPP_DISALLOW_NEW();
+    QJSPP_DISABLE_COPY_MOVE(ExitJsScope);
+    QJSPP_DISABLE_NEW();
 };
 
 

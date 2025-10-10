@@ -1,6 +1,7 @@
 #pragma once
 #include "qjspp/Concepts.hpp"
 #include "qjspp/Definitions.hpp"
+#include "qjspp/JsManagedResource.hpp"
 #include "qjspp/Types.hpp"
 #include <stdexcept>
 #include <string>
@@ -49,7 +50,7 @@ std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(T
 
 
 template <typename C>
-InstanceDefine::InstanceEqualsCallback bindInstanceEquals();
+InstanceMemberDefine::InstanceEqualsCallback bindInstanceEquals();
 
 } // namespace internal
 
@@ -57,14 +58,13 @@ InstanceDefine::InstanceEqualsCallback bindInstanceEquals();
 template <typename Class>
 struct ClassDefineBuilder {
 private:
-    std::string                           className_;
-    std::vector<StaticDefine::Property>   staticProperty_;
-    std::vector<StaticDefine::Function>   staticFunctions_;
-    InstanceConstructor                   instanceConstructor_;
-    std::vector<InstanceDefine::Property> instanceProperty_;
-    std::vector<InstanceDefine::Method>   instanceFunctions_;
-    ClassDefine const*                    extend_          = nullptr;
-    bool const                            isInstanceClass_ = !std::is_void_v<Class>;
+    std::string                                 className_;
+    std::vector<StaticMemberDefine::Property>   staticProperty_;
+    std::vector<StaticMemberDefine::Function>   staticFunctions_;
+    InstanceConstructor                         instanceConstructor_;
+    std::vector<InstanceMemberDefine::Property> instanceProperty_;
+    std::vector<InstanceMemberDefine::Method>   instanceFunctions_;
+    ClassDefine const*                          base_ = nullptr;
 
 public:
     explicit ClassDefineBuilder(std::string className) : className_(std::move(className)) {}
@@ -204,20 +204,21 @@ public:
      */
     ClassDefineBuilder<Class>& extends(ClassDefine const& parent) {
         static_assert(!std::is_void_v<Class>, "Only instance classes can set up inheritance.");
-        extend_ = &parent;
+        base_ = &parent;
         return *this;
     }
 
-    ClassDefine build() {
-        if (isInstanceClass_ && !instanceConstructor_) {
+    [[nodiscard]] ClassDefine build() {
+        bool const isInstanceClass = !std::is_void_v<Class>;
+        if (isInstanceClass && !instanceConstructor_) {
             throw std::logic_error("Instance class must have a constructor!");
         }
 
         // generate class wrapped resource factory
-        ClassDefine::TypedWrappedResourceFactory factory = nullptr;
-        if constexpr (!std::is_void_v<Class>) {
-            factory = [](void* instance) -> std::unique_ptr<WrappedResource> {
-                return WrappedResource::make(
+        ClassDefine::ManagedResourceFactory factory = nullptr;
+        if constexpr (isInstanceClass) {
+            factory = [](void* instance) -> std::unique_ptr<JsManagedResource> {
+                return JsManagedResource::make(
                     instance,
                     [](void* res) -> void* { return res; },
                     [](void* res) -> void { delete static_cast<Class*>(res); }
@@ -226,21 +227,21 @@ public:
         }
 
         // generate script helper function
-        InstanceDefine::InstanceEqualsCallback equals = nullptr;
-        if constexpr (!std::is_void_v<Class>) {
+        InstanceMemberDefine::InstanceEqualsCallback equals = nullptr;
+        if constexpr (isInstanceClass) {
             equals = internal::bindInstanceEquals<Class>();
         }
 
         return ClassDefine{
             std::move(className_),
-            StaticDefine{std::move(staticProperty_), std::move(staticFunctions_)},
-            InstanceDefine{
-                         std::move(instanceConstructor_),
-                         std::move(instanceProperty_),
-                         std::move(instanceFunctions_),
-                         equals
+            StaticMemberDefine{std::move(staticProperty_), std::move(staticFunctions_)},
+            InstanceMemberDefine{
+                               std::move(instanceConstructor_),
+                               std::move(instanceProperty_),
+                               std::move(instanceFunctions_),
+                               equals
             },
-            extend_,
+            base_,
             factory
         };
     }
@@ -267,7 +268,7 @@ struct EnumDefineBuilder {
         return *this;
     }
 
-    EnumDefine build() { return EnumDefine{std::move(name_), std::move(entries_)}; }
+    [[nodiscard]] EnumDefine build() { return EnumDefine{std::move(name_), std::move(entries_)}; }
 };
 
 
