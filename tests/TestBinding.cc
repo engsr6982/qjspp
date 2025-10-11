@@ -272,7 +272,8 @@ TEST_CASE_METHOD(TestEngineFixture, "Test Callback") {
 
 class AbstractFoo {
 public:
-    AbstractFoo() = default;
+    AbstractFoo()          = default;
+    virtual ~AbstractFoo() = default;
 
     virtual std::string foo() = 0;
 };
@@ -396,4 +397,55 @@ TEST_CASE_METHOD(TestEngineFixture, "toStringTag") {
     engine_->registerEnum(ColorDef_);
 
     REQUIRE(engine_->eval("Color.toString()").asString().value() == "[object Color]");
+}
+
+
+// overload constructor
+class PointMeta {
+public:
+    int  x_{0}, y_{0};
+    bool external_ = false;
+
+    PointMeta() = default;
+    PointMeta(int x, int y) : x_(x), y_(y) {}
+    PointMeta(int x, int y, bool external) : x_(x), y_(y), external_(external) {}
+};
+auto ScriptPointMeta = qjspp::defineClass<PointMeta>("PointMeta")
+                           .constructor<>()
+                           .constructor<int, int>()
+                           .constructor<int, int, bool>()
+                           .instanceProperty("x", &PointMeta::x_)
+                           .instanceProperty("y", &PointMeta::y_)
+                           .instanceProperty("external", &PointMeta::external_)
+                           .build();
+
+TEST_CASE_METHOD(TestEngineFixture, "Overload Constructor") {
+    qjspp::JsScope scope{engine_};
+
+    engine_->registerClass(ScriptPointMeta);
+    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+
+    REQUIRE_NOTHROW(engine_->eval(R"(
+        let p = new PointMeta();
+        assert(p.x == 0);
+        assert(p.y == 0);
+        assert(p.external == false);
+    )"));
+    REQUIRE_NOTHROW(engine_->eval(R"(
+        let p2 = new PointMeta(1, 2);
+        assert(p2.x == 1);
+        assert(p2.y == 2);
+        assert(p2.external == false);
+    )"));
+    REQUIRE_NOTHROW(engine_->eval(R"(
+        let p3 = new PointMeta(1, 2, true);
+        assert(p3.x == 1);
+        assert(p3.y == 2);
+        assert(p3.external == true);
+    )"));
+    REQUIRE_THROWS_MATCHES(
+        engine_->eval("new PointMeta(1, 2, 3, 4)"),
+        qjspp::JsException,
+        Catch::Matchers::Message("This native class cannot be constructed.")
+    );
 }

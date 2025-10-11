@@ -1,7 +1,5 @@
 #include "qjspp/TaskQueue.hpp"
 
-#include "qjspp/Binding.hpp"
-
 namespace qjspp {
 
 

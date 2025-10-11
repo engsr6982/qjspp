@@ -3,6 +3,7 @@
 #include "qjspp/Definitions.hpp"
 #include "qjspp/JsManagedResource.hpp"
 #include "qjspp/Types.hpp"
+#include "qjspp/Values.hpp"
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -61,10 +62,15 @@ private:
     std::string                                 className_;
     std::vector<StaticMemberDefine::Property>   staticProperty_;
     std::vector<StaticMemberDefine::Function>   staticFunctions_;
-    InstanceConstructor                         instanceConstructor_;
     std::vector<InstanceMemberDefine::Property> instanceProperty_;
     std::vector<InstanceMemberDefine::Method>   instanceFunctions_;
     ClassDefine const*                          base_ = nullptr;
+
+    enum class ConstructorMode { None, Normal, Custom, Disabled };
+    ConstructorMode                                              constructorMode_        = ConstructorMode::None;
+    InstanceConstructor                                          userDefinedConstructor_ = nullptr;
+    std::unordered_map<size_t, std::vector<InstanceConstructor>> constructors_           = {};
+
 
 public:
     explicit ClassDefineBuilder(std::string className) : className_(std::move(className)) {}
@@ -120,8 +126,14 @@ public:
             !std::is_aggregate_v<Class> && std::is_constructible_v<Class, Args...>,
             "Constructor must be callable with the specified arguments"
         );
-        if (instanceConstructor_) throw std::logic_error("Constructor has already been registered!");
-        instanceConstructor_ = internal::bindInstanceConstructor<Class, Args...>();
+        if (constructorMode_ == ConstructorMode::Custom)
+            throw std::logic_error("Cannot mix constructor() with customConstructor()");
+        if (constructorMode_ == ConstructorMode::Disabled)
+            throw std::logic_error("Cannot mix constructor() with disableConstructor()");
+
+        constexpr size_t N = sizeof...(Args);
+        constructorMode_   = ConstructorMode::Normal;
+        constructors_[N].emplace_back(internal::bindInstanceConstructor<Class, Args...>());
         return *this;
     }
 
@@ -132,8 +144,12 @@ public:
     template <typename T = Class>
         requires(!std::is_void_v<T>)
     ClassDefineBuilder<Class>& customConstructor(InstanceConstructor ctor) {
-        if (instanceConstructor_) throw std::logic_error("Constructor has already been registered!");
-        instanceConstructor_ = std::move(ctor);
+        if (constructorMode_ == ConstructorMode::Normal)
+            throw std::logic_error("Cannot mix customConstructor() with constructor()");
+        if (constructorMode_ == ConstructorMode::Disabled)
+            throw std::logic_error("Cannot mix customConstructor() with disableConstructor()");
+        constructorMode_        = ConstructorMode::Custom;
+        userDefinedConstructor_ = std::move(ctor);
         return *this;
     }
 
@@ -144,8 +160,12 @@ public:
     template <typename T = Class>
         requires(!std::is_void_v<T>)
     ClassDefineBuilder<Class>& disableConstructor() {
-        if (instanceConstructor_) throw std::logic_error("Constructor has already been registered!");
-        instanceConstructor_ = [](Arguments const&) { return nullptr; };
+        if (constructorMode_ == ConstructorMode::Normal)
+            throw std::logic_error("Cannot mix disableConstructor() with constructor()");
+        if (constructorMode_ == ConstructorMode::Custom)
+            throw std::logic_error("Cannot mix disableConstructor() with customConstructor()");
+        constructorMode_        = ConstructorMode::Disabled;
+        userDefinedConstructor_ = [](Arguments const&) { return nullptr; };
         return *this;
     }
 
@@ -210,8 +230,31 @@ public:
 
     [[nodiscard]] ClassDefine build() {
         bool const isInstanceClass = !std::is_void_v<Class>;
-        if (isInstanceClass && !instanceConstructor_) {
-            throw std::logic_error("Instance class must have a constructor!");
+
+        InstanceConstructor ctor = nullptr;
+        if (isInstanceClass) {
+            if (constructorMode_ == ConstructorMode::Custom || constructorMode_ == ConstructorMode::Disabled) {
+                if (userDefinedConstructor_ == nullptr) {
+                    throw std::logic_error("No constructor provided");
+                }
+                ctor = std::move(userDefinedConstructor_);
+            } else {
+                ctor = [fn = std::move(constructors_)](Arguments const& arguments) -> void* {
+                    auto argc = arguments.length();
+                    auto iter = fn.find(argc);
+                    if (iter == fn.end()) {
+                        return nullptr;
+                    }
+                    for (auto const& f : iter->second) {
+                        try {
+                            if (void* ptr = std::invoke(f, arguments)) {
+                                return ptr;
+                            }
+                        } catch (...) {}
+                    }
+                    return nullptr;
+                };
+            }
         }
 
         // generate class wrapped resource factory
@@ -235,12 +278,7 @@ public:
         return ClassDefine{
             std::move(className_),
             StaticMemberDefine{std::move(staticProperty_), std::move(staticFunctions_)},
-            InstanceMemberDefine{
-                               std::move(instanceConstructor_),
-                               std::move(instanceProperty_),
-                               std::move(instanceFunctions_),
-                               equals
-            },
+            InstanceMemberDefine{std::move(ctor), std::move(instanceProperty_), std::move(instanceFunctions_), equals},
             base_,
             factory
         };

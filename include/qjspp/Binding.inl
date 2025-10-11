@@ -235,7 +235,8 @@ std::pair<GetterCallback, SetterCallback> bindStaticProperty(Ty* p) {
 template <typename C, typename... Args>
 InstanceConstructor bindInstanceConstructor() {
     return [](Arguments const& args) -> void* {
-        if constexpr (sizeof...(Args) == 0) {
+        constexpr size_t N = sizeof...(Args);
+        if constexpr (N == 0) {
             static_assert(
                 HasDefaultConstructor_v<C>,
                 "Class C must have a no-argument constructor; otherwise, a constructor must be specified."
@@ -244,7 +245,6 @@ InstanceConstructor bindInstanceConstructor() {
             return new C();
 
         } else {
-            constexpr size_t N = sizeof...(Args);
             if (args.length() != N) return nullptr; // Parameter mismatch
 
             using Tuple = std::tuple<Args...>;
