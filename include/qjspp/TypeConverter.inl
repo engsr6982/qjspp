@@ -203,7 +203,7 @@ template <typename T>
         internal::IsTypeConverterAvailable_v<T>,
         "Cannot convert T to Js; there is no available TypeConverter."
     );
-    return internal::TypedConverter<T>::toJs(std::forward<T>(value)).asValue();
+    return internal::RawTypeConverter<T>::toJs(std::forward<T>(value)).asValue();
 }
 
 template <typename T>
@@ -216,13 +216,13 @@ template <typename T>
     using RequestedT = T;                                                     // 可能为 U, U&, U*
     using BareT      = std::remove_cv_t<std::remove_reference_t<RequestedT>>; // U
 
-    using Conv    = detail_conv::TC<RequestedT>;            // TypedConverter<U>
-    using ConvRet = detail_conv::TypedToCppRet<RequestedT>; // decltype(Conv::toCpp(Value))
+    using Conv    = internal::RawTypeConverter<RequestedT>; // RawTypeConverter<U>
+    using ConvRet = decltype(Conv::toCpp(std::declval<Value>()));
 
     if constexpr (std::is_lvalue_reference_v<RequestedT>) { // 需要 U&
         if constexpr (std::is_pointer_v<std::remove_reference_t<ConvRet>>) {
             auto p = Conv::toCpp(value); // 返回 U*
-            if (!p) throw std::runtime_error("TypeConverter::toCpp returned a null pointer.");
+            if (p == nullptr) throw std::runtime_error("TypeConverter::toCpp returned a null pointer.");
             return static_cast<RequestedT&>(*p); // 返回 U&
         } else if constexpr (std::is_lvalue_reference_v<ConvRet>
                              || std::is_const_v<std::remove_reference_t<RequestedT>>) {
@@ -249,7 +249,7 @@ template <typename T>
     } else {
         // 值类型 U
         using RawConvRet = std::remove_cv_t<std::remove_reference_t<ConvRet>>;
-        if constexpr ((std::is_same_v<RawConvRet, BareT> || detail_conv::CppValueTypeTransformer_v<RawConvRet, BareT>)
+        if constexpr ((std::is_same_v<RawConvRet, BareT> || internal::CppValueTypeTransformer_v<RawConvRet, BareT>)
                       && !std::is_pointer_v<std::remove_reference_t<ConvRet>> && !std::is_lvalue_reference_v<ConvRet>) {
             return Conv::toCpp(value); // 按值返回 / 直接返回 (可能 NRVO)
         } else {
