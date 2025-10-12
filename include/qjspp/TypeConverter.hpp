@@ -43,39 +43,19 @@ using RawType = std::remove_pointer_t<std::decay_t<T>>;
 template <typename T>
 using RawTypeConverter = TypeConverter<RawType<T>>;
 
-namespace detail {
 
-template <typename T, typename = void>
-constexpr bool has_toJs_Tref = false;
-
-template <typename T>
-constexpr bool has_toJs_Tref<T, std::void_t<decltype(RawTypeConverter<T>::toJs(std::declval<RawType<T>&>()))>> = true;
-
-template <typename T, typename = void>
-constexpr bool has_toJs_Tval = false;
-
-
-template <typename T>
-constexpr bool has_toJs_Tval<T, std::void_t<decltype(RawTypeConverter<T>::toJs(std::declval<RawType<T>>()))>> = true;
-
-template <typename T, typename = void>
-constexpr bool has_toJs_Tptr = false;
+template <typename  T>
+concept TypeConverterAvailable = requires(Value v) {
+    { RawTypeConverter<T>::toCpp(v) };
+} &&
+(
+    requires(RawType<T>& ref) { RawTypeConverter<T>::toJs(ref); } ||
+    requires(RawType<T> val) { RawTypeConverter<T>::toJs(val); } ||
+    requires(RawType<T>* ptr) { RawTypeConverter<T>::toJs(ptr); }
+);
 
 template <typename T>
-constexpr bool has_toJs_Tptr<T, std::void_t<decltype(RawTypeConverter<T>::toJs(std::declval<RawType<T>*>()))>> = true;
-
-} // namespace detail
-
-template <typename T, typename = void>
-struct IsTypeConverterAvailable : std::false_type {};
-
-template <typename T>
-struct IsTypeConverterAvailable<T, std::void_t<decltype(RawTypeConverter<T>::toCpp(std::declval<Value>()))>>
-: std::bool_constant<detail::has_toJs_Tref<T> || detail::has_toJs_Tval<T> || detail::has_toJs_Tptr<T>> {};
-
-
-template <typename T>
-constexpr bool IsTypeConverterAvailable_v = IsTypeConverterAvailable<T>::value;
+constexpr bool IsTypeConverterAvailable_v = TypeConverterAvailable<T>;
 
 
 /**
