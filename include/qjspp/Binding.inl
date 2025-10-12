@@ -147,7 +147,7 @@ inline decltype(auto) WrapCallback(Value const& value) {
             }
 #else
             if constexpr (std::is_void_v<R>) {
-                engine->invokeUnhandledJsExceptionCallback(e, UnhandledExceptionOrigin::Callback);
+                engine->invokeUnhandledJsException(e, UnhandledExceptionOrigin::Callback);
             } else {
                 throw std::runtime_error{
                     "unhandled js exception in callback, qjspp cannot handle the callback return value!"
@@ -367,5 +367,16 @@ InstanceMemberDefine::InstanceEqualsCallback bindInstanceEquals() {
 
 
 } // namespace internal
+
+
+// impl for Function
+template <typename T>
+    requires(!IsFunctionCallback<T>)
+Function::Function(T&& func) : qjspp::Function(internal::bindStaticFunction(std::forward<T>(func))) {}
+
+template <typename... Fn>
+    requires(sizeof...(Fn) > 1 && (!IsFunctionCallback<Fn> && ...))
+Function::Function(Fn&&... func) : qjspp::Function(internal::bindStaticOverloadedFunction(std::forward<Fn>(func)...)) {}
+
 
 } // namespace qjspp
