@@ -241,10 +241,14 @@ public:
 };
 
 
-qjspp::Value jsassert(qjspp::Arguments const& args) {
-    REQUIRE(args.length() == 1);
+qjspp::Value JsAssert(qjspp::Arguments const& args) {
+    REQUIRE((args.length() == 1 || args.length() == 2));
     REQUIRE(args[0].isBoolean());
-    REQUIRE(args[0].asBoolean().value() == true);
+    bool val = args[0].asBoolean().value() == true;
+    if (args.length() == 2 && !val) {
+        std::cout << "Assert Failed: " << args[1].toString().value() << std::endl;
+    }
+    REQUIRE(val);
     return {};
 }
 
@@ -258,7 +262,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Test Callback") {
     qjspp::JsScope scope{engine_};
 
     engine_->registerClass(TestFormDefine);
-    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+    engine_->globalThis().set("assert", qjspp::Function{&JsAssert});
 
     engine_->eval(R"(
         let fm = new TestForm();
@@ -294,7 +298,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Abstract Class") {
     auto impl = std::make_shared<FooImpl>();
 
     engine_->registerClass(AbstractFooDef);
-    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+    engine_->globalThis().set("assert", qjspp::Function{&JsAssert});
     engine_->globalThis().set("getAbstractFoo", qjspp::Function{[impl](qjspp::Arguments const& args) -> qjspp::Value {
                                   REQUIRE(args.length() == 0);
                                   auto i = impl;
@@ -332,7 +336,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Builder Pattern") {
     qjspp::JsScope scope{engine_};
 
     engine_->registerClass(BuilderDefine);
-    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+    engine_->globalThis().set("assert", qjspp::Function{&JsAssert});
 
     REQUIRE_NOTHROW(engine_->eval(R"(
         let builder = new Builder();
@@ -373,7 +377,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Enum Module Bind") {
     qjspp::JsScope scope{engine_};
 
     engine_->registerModule(ColorModuleDef_);
-    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+    engine_->globalThis().set("assert", qjspp::Function{&JsAssert});
 
     REQUIRE_NOTHROW(engine_->eval(
         R"(
@@ -423,7 +427,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Overload Constructor") {
     qjspp::JsScope scope{engine_};
 
     engine_->registerClass(ScriptPointMeta);
-    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+    engine_->globalThis().set("assert", qjspp::Function{&JsAssert});
 
     REQUIRE_NOTHROW(engine_->eval(R"(
         let p = new PointMeta();
@@ -458,6 +462,8 @@ public:
 
     Vec3() = default;
     Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
+
+    std::string toString() { return std::format("Vec3({},{},{})", x, y, z); }
 };
 class AABB {
 public:
@@ -473,6 +479,7 @@ auto ScriptVec3 = qjspp::defineClass<Vec3>("Vec3")
                       .instanceProperty("x", &Vec3::x)
                       .instanceProperty("y", &Vec3::y)
                       .instanceProperty("z", &Vec3::z)
+                      .instanceMethod("toString", &Vec3::toString)
                       .build();
 
 
@@ -501,12 +508,21 @@ TEST_CASE_METHOD(TestEngineFixture, "Non-value type ref") {
 
     engine_->registerClass(ScriptVec3);
     engine_->registerClass(ScriptAABB);
-    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+    engine_->globalThis().set("assert", qjspp::Function{&JsAssert});
 
     REQUIRE_NOTHROW(engine_->eval(R"(
         let aabb = new AABB(new Vec3(0, 0, 0), new Vec3(1, 1, 1));
         let min = aabb.min;
         min.x = 2;
         assert(aabb.min.x === min.x) // min is a reference to aabb.min
+    )"));
+
+    REQUIRE_NOTHROW(engine_->eval(R"(
+        let ab = new AABB();
+        let mm = ab.min;
+        assert(ab.min.$equals(mm), `${ab.min}/${mm}`);
+
+        ab.min = new Vec3(1, 2, 3);
+        assert(ab.min.$equals(mm), `${ab.min}/${mm}`);
     )"));
 }
