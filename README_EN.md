@@ -1,71 +1,78 @@
-# qjspp - QuickJS/QuickJS-ng 的现代 C++包装
+# qjspp - Modern C++ Wrapper for QuickJS / QuickJS-ng
 
 - [中文](./README.md) | [English](./README_EN.md)
 
-`qjspp` 是一个现代 C++ 封装库，用于 QuickJS/QuickJS-ng，支持类绑定、模块注册、回调绑定等功能，使 C++ 与 JS 双向交互更自然。
+`qjspp` is a modern C++ wrapper library for QuickJS / QuickJS-ng.  
+It supports class binding, module registration, callback binding, and more — making **C++ ↔ JS interop** natural and
+clean.
 
-特点：
+Features:
 
-- **无侵入性绑定**：只需注册绑定即可，无需改动现有 C++ 代码。
-- **良好的类型支持**：支持标准 C++ 类型（`std::string`、`int` 等）、枚举、引用语义属性。
-- **灵活的绑定模式**：支持静态绑定、实例绑定、函数绑定、回调绑定、模块注册、Builder 模式等。
-- **异常传递**：C++ ↔ JS 双向异常模型。
-
----
-
-## ✨ 功能列表
-
-- ✅ 函数绑定
-- ✅ 静态绑定
-- ✅ 实例绑定
-- ✅ 枚举绑定
-- ✅ 模块注册
-- ✅ 回调绑定 (JS → C++)
-- ✅ Builder 模式支持
-- ✅ 实例类属性对象引用语义
-- ✅ 构造函数重载
-- ✅ 任意函数绑定重载
-- ✅ 双向异常模型
-- ✅ 类型转换桥
+- **Non-intrusive bindings**: only need to register bindings, no modification to existing C++ code.
+- **Strong type support**: supports standard C++ types (`std::string`, `int`, etc.), enums, and reference semantics for
+  properties.
+- **Flexible binding modes**: static binding, instance binding, function binding, callback binding, module registration,
+  Builder pattern, etc.
+- **Exception forwarding**: full two-way exception model between C++ and JS.
 
 ---
 
-## ⚙️ 行为控制宏
+## ✨ Features
+
+- ✅ Function binding
+- ✅ Static binding
+- ✅ Instance binding
+- ✅ Enum binding
+- ✅ Module registration
+- ✅ Callback binding (JS → C++)
+- ✅ Builder pattern support
+- ✅ Reference semantics for instance properties
+- ✅ Constructor overloading
+- ✅ Arbitrary function overload binding
+- ✅ Two-way exception model
+- ✅ Type conversion bridge
+
+---
+
+## ⚙️ Behavior Control Macros
 
 ### `QJSPP_SKIP_INSTANCE_CALL_CHECK_CLASS_DEFINE`
 
-- **默认：关闭**
-- 控制实例方法或属性调用时是否检查 `JsManagedResource::define_` 是否与注册时的 `ClassDefine` 匹配。
-- 打开后可跳过检查，关闭时不匹配会抛出 `JsException`。
+- **Default: Off**
+- Controls whether instance method/property calls check if `JsManagedResource::define_` matches the registered
+  `ClassDefine`.
+- When enabled, skips validation. When disabled, mismatch throws `JsException`.
 
 ### `QJSPP_CALLBACK_ALWAYS_THROW_IF_NEED_RETURN_VALUE`
 
-- **默认：关闭**
-- 调用绑定回调时，如果 JS 抛异常且需要返回值，则直接抛 `std::runtime_error`。
-- 默认行为是尝试用返回值类型的默认构造填充，如果不可行则抛 `std::runtime_error`。
+- **Default: Off**
+- When invoking bound callbacks, if JS throws and a return value is required, a `std::runtime_error` is thrown.
+- By default, it tries to use the default constructor of the return type if possible.
 
 ### `QJSPP_INT64_OR_UINT64_ALWAYS_USE_NUMBER_OF_BIGINT_IN_TYPE_CONVERTER`
 
-- **默认：关闭**
-- 启用后 `int64_t` / `uint64_t` 类型在转换时使用 `Number` 而不是 `BigInt`。
+- **Default: Off**
+- If enabled, `int64_t` / `uint64_t` conversions use JS `Number` instead of `BigInt`.
 
 ### `QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG`
 
-- **默认：关闭**
-- 默认情况下，会修改注册类、静态类、枚举的 `Symbol.toStringTag` 为类名，便于调试。启用后不修改。
+- **Default: Off**
+- By default, modifies `Symbol.toStringTag` for registered classes/enums to improve debugging.  
+  Disable to keep original tags.
 
 ### `QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO`
 
-- **默认：关闭**
-- 默认会为所有实例类生成 `$equals` 方法，比较指针或 `operator==`。启用后不生成。
+- **Default: Off**
+- Automatically generates a `$equals` helper method for comparing instance pointers or `operator==`.  
+  Disable to skip generation.
 
 ---
 
-## 🧩 原生绑定示例
+## 🧩 Native Binding Examples
 
-以下示例摘自单元测试，覆盖主要功能。
+All examples below are extracted from unit tests and cover major features.
 
-### 静态绑定
+### Static Binding
 
 ```cpp
 struct Util {
@@ -99,7 +106,7 @@ qjspp::ClassDefine const UtilDefine =
         .build();
 ```
 
-### 实例绑定 & 继承
+### Instance Binding & Inheritance
 
 ```cpp
 class Base { /* ... */ };
@@ -108,27 +115,27 @@ class Derived : public Base { /* ... */ };
 qjspp::ClassDefine const BaseDefine = qjspp::defineClass<Base>("Base") /* ... */;
 qjspp::ClassDefine const DerivedDefine = qjspp::defineClass<Derived>("Derived").extends(BaseDefine) /* ... */;
 
-// JS 调用：
+// JS usage:
 engine_->eval("let obj = new Derived(123); obj.baseBar(); obj.type();");
-engine_->eval("Derived.foo"); // 静态属性
+engine_->eval("Derived.foo"); // static property
 ```
 
-- 支持实例继承链访问父类实例方法/属性。
-- 静态属性需通过类访问，按标准不会通过实例访问。
-- 自动生成 $equals 比较方法（可关闭）。
+- Instance inheritance supports parent instance methods and properties.
+- Static properties must be accessed via the class, not instance (as per JS standard).
+- `$equals` helper auto-generated (can be disabled).
 
-### 模块绑定
+### Module Registration
 
 ```cpp
 qjspp::ModuleDefine NativeModuleDef =
     qjspp::defineModule("native").addClass(UtilDefine).addClass(BaseDefine).addClass(DerivedDefine).build();
 engine_->registerModule(NativeModuleDef);
 
-// JS 使用
+// JS usage
 engine_->eval("import { Base, Util } from 'native'; Base.baseTrue(); Util.add(1,2);");
 ```
 
-### 函数绑定
+### Function Binding
 
 ```cpp
 int add(int a, int b) { return a + b; }
@@ -138,7 +145,7 @@ engine_->globalThis().set("add", qjspp::Function{&add});
 engine_->globalThis().set("append", qjspp::Function{static_cast<std::string(*)(std::string const&, int)>(&append)});
 ```
 
-### 回调绑定 (JS → C++)
+### Callback Binding (JS → C++)
 
 ```cpp
 class TestForm {
@@ -157,7 +164,7 @@ qjspp::ClassDefine TestFormDefine = qjspp::defineClass<TestForm>("TestForm")
                                         .build();
 ```
 
-JS 调用：
+JS usage:
 
 ```js
 let fm = new TestForm();
@@ -165,21 +172,21 @@ fm.setCallback(val => console.log(val));
 fm.call(42);
 ```
 
-### Builder 模式
+### Builder Pattern
 
 ```cpp
 class Builder { /* ... */ };
 qjspp::ClassDefine BuilderDefine = qjspp::defineClass<Builder>("Builder") /* ... */;
 ```
 
-JS 调用：
+JS usage:
 
 ```js
 let builder = new Builder();
 let str = builder.append("Hello").append(" World").build(); // "Hello World"
 ```
 
-### 枚举绑定
+### Enum Binding
 
 ```cpp
 enum class Color { Red, Green, Blue };
@@ -190,7 +197,7 @@ qjspp::EnumDefine ColorDef_ = qjspp::defineEnum<Color>("Color")
                                   .build();
 ```
 
-JS 调用：
+JS usage:
 
 ```js
 Color.Red   // 0
@@ -198,10 +205,10 @@ Color.Green // 1
 Color.Blue  // 2
 ```
 
-## 异常传递
+## Exception Forwarding
 
-- C++ 抛出的 `JsException` 可被 JS 捕获。
-- JS 抛出的异常可在 C++ 捕获为 `JsException`。
+- `JsException` thrown in C++ can be caught in JS.
+- JS exceptions can be caught in C++ as `JsException`.
 
 ```cpp
 auto nativeThrow = qjspp::Function{[](qjspp::Arguments const&) { throw qjspp::JsException{"native throw"}; }};
