@@ -481,8 +481,8 @@ Object Arguments::thiz() const { return Value::wrap<Object>(thiz_); }
 
 size_t Arguments::length() const { return length_; }
 
-bool             Arguments::hasWrappedResource() const { return wrap_ != nullptr; }
-JsManagedResource* Arguments::getWrappedResource() const { return wrap_; }
+bool             Arguments::hasJsManagedResource() const { return wrap_ != nullptr; }
+JsManagedResource* Arguments::getJsManagedResource() const { return wrap_; }
 
 Value Arguments::operator[](size_t index) const {
     if (index >= length_) {

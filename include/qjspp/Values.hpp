@@ -353,8 +353,8 @@ public:
     // Obtain internal resource management wrapper.
     // This function is only used internally.
     // note: This resource is only valid during instance class calls (method, property).
-    [[nodiscard]] bool                      hasWrappedResource() const;
-    [[nodiscard]] struct JsManagedResource* getWrappedResource() const;
+    [[nodiscard]] bool                      hasJsManagedResource() const;
+    [[nodiscard]] struct JsManagedResource* getJsManagedResource() const;
 
     Value operator[](size_t index) const;
 };

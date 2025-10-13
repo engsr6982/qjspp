@@ -30,13 +30,13 @@ void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
 
     auto opaque = JS_GetOpaque(val, classID);
     if (opaque) {
-        auto wrapped = static_cast<JsManagedResource*>(opaque);
-        assert(wrapped->define_->instanceMemberDef_.classId_ == classID); // 校验类ID是否匹配
-        auto engine = const_cast<JsEngine*>(wrapped->engine_);
+        auto managed_resource = static_cast<JsManagedResource*>(opaque);
+        assert(managed_resource->define_->instanceMemberDef_.classId_ == classID); // 校验类ID是否匹配
+        auto engine = const_cast<JsEngine*>(managed_resource->engine_);
 
         PauseGc pauseGc(engine); // 暂停GC
         JsScope lock(engine);    // 同步线程析构
-        delete wrapped;
+        delete managed_resource;
     }
 }
 bool JsEngine::kUpdateModuleMainFlag(JSContext* ctx, JSModuleDef* module, bool isMain) {
@@ -551,16 +551,16 @@ Object JsEngine::createConstructor(ClassDefine const& def) {
                 }
             }
 
-            void* wrapped = constructFromJs ? def->manage(instance).release() : instance;
+            void* managed = constructFromJs ? def->manage(instance).release() : instance;
             {
-                auto typed     = static_cast<JsManagedResource*>(wrapped);
+                auto typed     = static_cast<JsManagedResource*>(managed);
                 typed->define_ = def;
                 typed->engine_ = engine;
 
                 (*const_cast<bool*>(&typed->constructFromJs_)) = constructFromJs;
             }
 
-            JS_SetOpaque(obj, wrapped);
+            JS_SetOpaque(obj, managed);
             return Value::move<Value>(obj);
         }
     );
@@ -585,35 +585,39 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
 #ifndef QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO
     prototype.set(
         kInstanceClassHelperEqlaus,
-        createQuickJsCFunction(defPtr, nullptr, [](Arguments const& args, void* data1, void*, bool) -> Value {
-            auto classID = JS_GetClassID(args.thiz_);
-            assert(classID != JS_INVALID_CLASS_ID);
-            auto typed = static_cast<JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
-            auto thiz  = (*typed)();
-            if (thiz == nullptr) {
-                throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
-            }
-            if (kInstanceCallCheckClassDefine
-                && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data1))) {
-                throw JsException{"This object is not a valid instance of this class."};
-            }
-            const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
+        createQuickJsCFunction(
+            defPtr,
+            nullptr,
+            [](Arguments const& args, void* data1, void*, bool) -> Value {
+                auto classID = JS_GetClassID(args.thiz_);
+                assert(classID != JS_INVALID_CLASS_ID);
+                auto typed = static_cast<JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
+                auto thiz  = (*typed)();
+                if (thiz == nullptr) {
+                    throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
+                }
+                if (kInstanceCallCheckClassDefine
+                    && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data1))) {
+                    throw JsException{"This object is not a valid instance of this class."};
+                }
+                const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getJsManagedResource
 
-            // lhs.$equals(rhs): boolean; lhs == rhs
-            if (args.length_ != 1) {
-                throw JsException{"$equals() takes exactly one argument."};
+                // lhs.$equals(rhs): boolean; lhs == rhs
+                if (args.length_ != 1) {
+                    throw JsException{"$equals() takes exactly one argument."};
+                }
+
+                auto rhs = args[0];
+                if (!rhs.isObject() || !args.engine_->isInstanceOf(rhs.asObject(), *typed->define_)) {
+                    return Boolean{false};
+                }
+
+                auto rhsInstance = args.engine_->getNativeInstanceOf(rhs.asObject(), *typed->define_);
+
+                bool const val = (*typed->define_->instanceMemberDef_.equals_)(thiz, rhsInstance);
+                return Boolean{val};
             }
-
-            auto rhs = args[0];
-            if (!rhs.isObject() || !args.engine_->isInstanceOf(rhs.asObject(), *typed->define_)) {
-                return Boolean{false};
-            }
-
-            auto rhsInstance = args.engine_->getNativeInstanceOf(rhs.asObject(), *typed->define_);
-
-            bool const val = (*typed->define_->instanceMemberDef_.equals_)(thiz, rhsInstance);
-            return Boolean{val};
-        })
+        )
     );
 #endif // QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO
 
@@ -633,7 +637,7 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                     && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
                     throw JsException{"This object is not a valid instance of this class."};
                 }
-                const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
+                const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getJsManagedResource
 
                 auto def = static_cast<InstanceMemberDefine::Method*>(data1);
                 return (def->callback_)(thiz, args);
@@ -661,7 +665,7 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                     && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
                     throw JsException{"This object is not a valid instance of this class."};
                 }
-                const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
+                const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getJsManagedResource
 
                 auto def = static_cast<InstanceMemberDefine::Property*>(data1);
                 return (def->getter_)(thiz, args);
@@ -684,7 +688,7 @@ Object JsEngine::createPrototype(ClassDefine const& def) {
                         && !ClassDefineCheckHelper(typed->define_, static_cast<ClassDefine*>(data2))) {
                         throw JsException{"This object is not a valid instance of this class."};
                     }
-                    const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getWrappedResource
+                    const_cast<Arguments&>(args).wrap_ = typed; // for Arguments::getJsManagedResource
 
                     auto def = static_cast<InstanceMemberDefine::Property*>(data1);
                     (def->setter_)(thiz, args);
@@ -822,8 +826,9 @@ void* JsEngine::getNativeInstanceOf(Object const& thiz, ClassDefine const& def) 
     if (!isInstanceOf(thiz, def)) {
         return nullptr;
     }
-    auto wrapped = static_cast<JsManagedResource*>(JS_GetOpaque(Value::extract(thiz), def.instanceMemberDef_.classId_));
-    return (*wrapped)();
+    auto managed_resource =
+        static_cast<JsManagedResource*>(JS_GetOpaque(Value::extract(thiz), def.instanceMemberDef_.classId_));
+    return (*managed_resource)();
 }
 
 void JsEngine::setUnhandledJsExceptionCallback(UnhandledJsExceptionCallback cb) { unhandledJsExceptionCallback_ = cb; }

@@ -272,7 +272,7 @@ public:
             }
         }
 
-        // generate class wrapped resource factory
+        // generate managed resource factory
         ClassDefine::ManagedResourceFactory factory = nullptr;
         if constexpr (isInstanceClass) {
             factory = [](void* instance) -> std::unique_ptr<JsManagedResource> {
