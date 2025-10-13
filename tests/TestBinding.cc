@@ -449,3 +449,64 @@ TEST_CASE_METHOD(TestEngineFixture, "Overload Constructor") {
         Catch::Matchers::Message("This native class cannot be constructed.")
     );
 }
+
+
+// property: Non-value type, reference mechanism
+class Vec3 {
+public:
+    float x, y, z;
+
+    Vec3() = default;
+    Vec3(float x, float y, float z) : x(x), y(y), z(z) {}
+};
+class AABB {
+public:
+    Vec3 min, max;
+
+    AABB() = default;
+    AABB(const Vec3& min, const Vec3& max) : min(min), max(max) {}
+};
+
+auto ScriptVec3 = qjspp::defineClass<Vec3>("Vec3")
+                      .constructor<>()
+                      .constructor<float, float, float>()
+                      .instanceProperty("x", &Vec3::x)
+                      .instanceProperty("y", &Vec3::y)
+                      .instanceProperty("z", &Vec3::z)
+                      .build();
+
+
+namespace qjspp {
+template <>
+struct TypeConverter<Vec3> {
+    static Value toJs(Vec3 const& ref) {
+        return JsScope::currentEngineChecked().newInstanceOfRaw(ScriptVec3, const_cast<Vec3*>(&ref));
+    }
+    static Vec3* toCpp(Value const& val) {
+        return JsScope::currentEngineChecked().getNativeInstanceOf<Vec3>(val.asObject(), ScriptVec3);
+    }
+};
+} // namespace qjspp
+
+
+auto ScriptAABB = qjspp::defineClass<AABB>("AABB")
+                      .constructor<>()
+                      .constructor<const Vec3&, const Vec3&>()
+                      .instancePropertyRef("min", &AABB::min, ScriptVec3)
+                      .instancePropertyRef("max", &AABB::max, ScriptVec3)
+                      .build();
+
+TEST_CASE_METHOD(TestEngineFixture, "Non-value type ref") {
+    qjspp::JsScope scope{engine_};
+
+    engine_->registerClass(ScriptVec3);
+    engine_->registerClass(ScriptAABB);
+    engine_->globalThis().set("assert", qjspp::Function{&jsassert});
+
+    REQUIRE_NOTHROW(engine_->eval(R"(
+        let aabb = new AABB(new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        let min = aabb.min;
+        min.x = 2;
+        assert(aabb.min.x === min.x) // min is a reference to aabb.min
+    )"));
+}

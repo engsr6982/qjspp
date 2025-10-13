@@ -28,7 +28,7 @@ template <typename Fn>
 SetterCallback bindStaticSetter(Fn&& fn);
 
 template <typename Ty>
-std::pair<GetterCallback, SetterCallback> bindStaticProperty(Ty* p);
+std::pair<GetterCallback, SetterCallback> bindStaticProperty(Ty* ptr);
 
 
 template <typename C, typename... Args>
@@ -47,8 +47,11 @@ template <typename C, typename Fn>
 InstanceSetterCallback bindInstanceSetter(Fn&& fn);
 
 template <typename C, typename Ty>
-std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(Ty C::* prop);
+std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(Ty C::* member);
 
+template <typename C, typename Ty>
+std::pair<InstanceGetterCallback, InstanceSetterCallback>
+bindInstancePropertyRef(Ty C::* member, ClassDefine const* def);
 
 template <typename C>
 InstanceMemberDefine::InstanceEqualsCallback bindInstanceEquals();
@@ -106,6 +109,8 @@ public:
     }
 
     // 静态属性（变量指针）/ Static property from global/static variable pointer
+    // 注意：绑定生成的属性默认采用值传递（即：toJs、toCpp 均拷贝实例）
+    // note: the default binding of the property uses value passing (i.e. toJs, toCpp all copy instances)
     template <typename Ty>
     ClassDefineBuilder<Class>& property(std::string name, Ty* member) {
         auto gs = internal::bindStaticProperty<Ty>(member);
@@ -209,10 +214,20 @@ public:
     }
 
     // 实例属性（成员变量）/ Instance property from T C::* member
+    // 注意：此回调适用于值类型成员，qjspp 会进行拷贝传递
     template <typename Member>
         requires(!std::is_void_v<Class> && std::is_member_object_pointer_v<Member>)
     ClassDefineBuilder<Class>& instanceProperty(std::string name, Member member) {
         auto gs = internal::bindInstanceProperty<Class>(std::forward<Member>(member));
+        instanceProperty_.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
+        return *this;
+    }
+
+    // 实例属性（成员变量，对象引用）/ Instance property from T C::* member with reference
+    template <typename Member>
+        requires(!std::is_void_v<Class> && std::is_member_object_pointer_v<Member>)
+    auto& instancePropertyRef(std::string name, Member member, ClassDefine const& def) {
+        auto gs = internal::bindInstancePropertyRef<Class>(std::forward<Member>(member), &def);
         instanceProperty_.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
         return *this;
     }

@@ -220,6 +220,13 @@ SetterCallback bindStaticSetter(Fn&& fn) {
 
 template <typename Ty>
 std::pair<GetterCallback, SetterCallback> bindStaticProperty(Ty* p) {
+    // 原则上，我们需要实现引用机制，来保证 JavaScript 中的对象引用机制。
+    // 但是，对于静态属性，我们没有可以与之关联的Js对象(Object)，这就无法创建引用。
+    // 所以对于静态属性，qjspp 只能对其进行拷贝传递。
+    static_assert(
+        std::copyable<RawType<Ty>>,
+        "Static property must be copyable; otherwise, a getter/setter must be specified."
+    );
     if constexpr (std::is_const_v<Ty>) {
         return {
             bindStaticGetter([p]() -> Ty { return *p; }),
@@ -333,17 +340,60 @@ InstanceSetterCallback bindInstanceSetter(Fn&& fn) {
 }
 
 template <typename C, typename Ty>
-std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(Ty C::* prop) {
+std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(Ty C::* member) {
+    static_assert(
+        std::copyable<RawType<Ty>>,
+        "bindInstanceProperty only supports copying properties, Ty does not support copying."
+    );
     if constexpr (std::is_const_v<Ty>) {
-        return {
-            bindInstanceGetter<C>([prop](C* inst) -> Ty { return inst->*prop; }),
-            nullptr // const
-        };
+        return {bindInstanceGetter<C>([member](C* inst) -> Ty { return inst->*member; }), nullptr};
     } else {
         return {
-            bindInstanceGetter<C>([prop](C* inst) -> Ty { return inst->*prop; }),
-            bindInstanceSetter<C>([prop](C* inst, Ty val) -> void { inst->*prop = val; })
+            bindInstanceGetter<C>([member](C* inst) -> Ty { return inst->*member; }),
+            bindInstanceSetter<C>([member](C* inst, Ty val) -> void { inst->*member = val; })
         };
+    }
+}
+
+template <typename C, typename Fn>
+InstanceGetterCallback bindInstanceGetterRef(Fn&& fn, ClassDefine const* def) {
+    return [f = std::forward<Fn>(fn), def](void* inst, Arguments const& arguments) {
+        if (!arguments.hasThiz()) {
+            throw JsException{"Cannot access class member; the current access does not have a valid 'this' reference."};
+        }
+        decltype(auto) result = std::invoke(f, static_cast<C*>(inst)); // const T* / T*
+
+        using ResultType = decltype(result);
+        static_assert(std::is_pointer_v<ResultType>, "InstanceGetterRef must return a pointer");
+
+        void* unk = nullptr;
+        if constexpr (std::is_const_v<ResultType>) {
+            unk = const_cast<void*>(static_cast<const void*>(result));
+        } else {
+            unk = static_cast<void*>(result);
+        }
+        return arguments.engine()->newInstanceOfView(*def, unk, arguments.thiz());
+    };
+}
+
+template <typename C, typename Ty>
+std::pair<InstanceGetterCallback, InstanceSetterCallback>
+bindInstancePropertyRef(Ty C::* member, ClassDefine const* def) {
+    using Raw = RawType<Ty>;
+    if constexpr (IsJsValueLike_v<Raw> && std::copyable<Raw>) {
+        return bindInstanceProperty<C>(std::forward<Ty C::*>(member)); // Value type, can be copied directly
+    } else {
+        if constexpr (std::is_const_v<Ty>) {
+            return {
+                bindInstanceGetterRef<C>([member](C* inst) -> Ty const* { return &(inst->*member); }, def),
+                nullptr
+            };
+        } else {
+            return {
+                bindInstanceGetterRef<C>([member](C* inst) -> Ty* { return &(inst->*member); }, def),
+                bindInstanceSetter<C>([member](C* inst, Ty* val) -> void { inst->*member = *val; })
+            };
+        }
     }
 }
 

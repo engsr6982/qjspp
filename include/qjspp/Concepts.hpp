@@ -52,4 +52,10 @@ template <typename T>
 concept IsInstanceMethodCallback = std::is_invocable_r_v<Value, T, void*, Arguments const&>;
 
 
+// JavaScript value types: undefined、null、boolean、number、string、symbol
+template <typename T>
+constexpr bool IsJsValueLike_v =
+    std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_same_v<std::decay_t<T>, std::string>;
+
+
 } // namespace qjspp
