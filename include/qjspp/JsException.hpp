@@ -18,7 +18,14 @@ class JsException final : public std::exception {
     explicit JsException(Value exception);
 
 public:
-    enum class Type { Any, RangeError, ReferenceError, SyntaxError, TypeError };
+    enum class Type {
+        Any,
+        RangeError,
+        ReferenceError,
+        SyntaxError,
+        TypeError,
+        InternalError // QuickJs extension
+    };
 
     explicit JsException(std::string message, Type type = Type::ReferenceError);
     explicit JsException(Type type, std::string message);

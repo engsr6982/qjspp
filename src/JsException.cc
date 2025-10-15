@@ -54,6 +54,9 @@ Value JsException::exception() const noexcept {
         case Type::TypeError:
             JS_ThrowTypeError(ctx, "%s", data_->message_.c_str());
             break;
+        case Type::InternalError:
+            JS_ThrowInternalError(ctx, "%s", data_->message_.c_str());
+            break;
         case Type::Any:
         default:
             JS_Throw(ctx, Value::extract(String(data_->message_)));
