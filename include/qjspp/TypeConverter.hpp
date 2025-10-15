@@ -37,11 +37,9 @@ struct TypeConverter<std::function<R(Args...)>> {
 
 namespace internal {
 
-template <typename T>
-using RawType = std::remove_pointer_t<std::decay_t<T>>;
 
 template <typename T>
-using RawTypeConverter = TypeConverter<RawType<T>>;
+using RawTypeConverter = TypeConverter<concepts::RawType<T>>;
 
 
 template <typename  T>
@@ -49,9 +47,9 @@ concept TypeConverterAvailable = requires(Value v) {
     { RawTypeConverter<T>::toCpp(v) };
 } &&
 (
-    requires(RawType<T>& ref) { RawTypeConverter<T>::toJs(ref); } ||
-    requires(RawType<T> val) { RawTypeConverter<T>::toJs(val); } ||
-    requires(RawType<T>* ptr) { RawTypeConverter<T>::toJs(ptr); }
+    requires(concepts::RawType<T>& ref) { RawTypeConverter<T>::toJs(ref); } ||
+    requires(concepts::RawType<T> val) { RawTypeConverter<T>::toJs(val); } ||
+    requires(concepts::RawType<T>* ptr) { RawTypeConverter<T>::toJs(ptr); }
 );
 
 template <typename T>

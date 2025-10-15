@@ -3,8 +3,10 @@
 #include "Types.hpp"
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "JsManagedResource.hpp"
+#include "reflection/TypeId.hpp"
 
 namespace qjspp {
 
@@ -87,6 +89,7 @@ public:
     StaticMemberDefine const   staticMemberDef_;
     InstanceMemberDefine const instanceMemberDef_;
     ClassDefine const*         base_{nullptr};
+    reflection::TypeId const   typeId_;
 
     [[nodiscard]] inline bool hasConstructor() const { return instanceMemberDef_.constructor_ != nullptr; }
 
@@ -104,12 +107,14 @@ private:
         StaticMemberDefine     staticDef,
         InstanceMemberDefine   instanceDef,
         ClassDefine const*     base,
+        reflection::TypeId     typeId,
         ManagedResourceFactory factory
     )
     : name_(std::move(name)),
       staticMemberDef_(std::move(staticDef)),
       instanceMemberDef_(std::move(instanceDef)),
       base_(base),
+      typeId_(std::move(typeId)),
       factory_(factory) {}
 
     template <typename>

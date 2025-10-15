@@ -74,7 +74,6 @@ private:
     InstanceConstructor                                          userDefinedConstructor_ = nullptr;
     std::unordered_map<size_t, std::vector<InstanceConstructor>> constructors_           = {};
 
-
 public:
     explicit ClassDefineBuilder(std::string className) : className_(std::move(className)) {}
 
@@ -290,11 +289,14 @@ public:
             equals = internal::bindInstanceEquals<Class>();
         }
 
+        constexpr auto typeId = reflection::getTypeId<Class>();
+
         return ClassDefine{
             std::move(className_),
             StaticMemberDefine{std::move(staticProperty_), std::move(staticFunctions_)},
             InstanceMemberDefine{std::move(ctor), std::move(instanceProperty_), std::move(instanceFunctions_), equals},
             base_,
+            std::move(typeId),
             factory
         };
     }

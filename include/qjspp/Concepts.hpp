@@ -58,4 +58,11 @@ constexpr bool IsJsValueLike_v =
     std::is_arithmetic_v<T> || std::is_enum_v<T> || std::is_same_v<std::decay_t<T>, std::string>;
 
 
+namespace concepts {
+
+template <typename T>
+using RawType = std::remove_pointer_t<std::decay_t<T>>;
+
+}
+
 } // namespace qjspp

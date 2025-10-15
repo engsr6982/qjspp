@@ -224,7 +224,7 @@ std::pair<GetterCallback, SetterCallback> bindStaticProperty(Ty* p) {
     // 但是，对于静态属性，我们没有可以与之关联的Js对象(Object)，这就无法创建引用。
     // 所以对于静态属性，qjspp 只能对其进行拷贝传递。
     static_assert(
-        std::copyable<RawType<Ty>>,
+        std::copyable<concepts::RawType<Ty>>,
         "Static property must be copyable; otherwise, a getter/setter must be specified."
     );
     if constexpr (std::is_const_v<Ty>) {
@@ -342,7 +342,7 @@ InstanceSetterCallback bindInstanceSetter(Fn&& fn) {
 template <typename C, typename Ty>
 std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(Ty C::* member) {
     static_assert(
-        std::copyable<RawType<Ty>>,
+        std::copyable<concepts::RawType<Ty>>,
         "bindInstanceProperty only supports copying properties, Ty does not support copying."
     );
     if constexpr (std::is_const_v<Ty>) {
@@ -358,16 +358,24 @@ std::pair<InstanceGetterCallback, InstanceSetterCallback> bindInstanceProperty(T
 template <typename C, typename Fn>
 InstanceGetterCallback bindInstanceGetterRef(Fn&& fn, ClassDefine const* def) {
     return [f = std::forward<Fn>(fn), def](void* inst, Arguments const& arguments) {
+        using Ret = FunctionTraits<std::decay_t<Fn>>::ReturnType;
+        static_assert(std::is_pointer_v<Ret>, "InstanceGetterRef must return a pointer");
+
+        auto typeId = reflection::getTypeId<concepts::RawType<Ret>>();
+        if (typeId != def->typeId_) {
+            throw JsException{
+                JsException::Type::TypeError,
+                "Type mismatch, ClassDefine::typeId_ and lambda return value are not the same type"
+            };
+        }
         if (!arguments.hasThiz()) {
             throw JsException{"Cannot access class member; the current access does not have a valid 'this' reference."};
         }
+
         decltype(auto) result = std::invoke(f, static_cast<C*>(inst)); // const T* / T*
 
-        using ResultType = decltype(result);
-        static_assert(std::is_pointer_v<ResultType>, "InstanceGetterRef must return a pointer");
-
         void* unk = nullptr;
-        if constexpr (std::is_const_v<ResultType>) {
+        if constexpr (std::is_const_v<Ret>) {
             unk = const_cast<void*>(static_cast<const void*>(result));
         } else {
             unk = static_cast<void*>(result);
@@ -379,7 +387,7 @@ InstanceGetterCallback bindInstanceGetterRef(Fn&& fn, ClassDefine const* def) {
 template <typename C, typename Ty>
 std::pair<InstanceGetterCallback, InstanceSetterCallback>
 bindInstancePropertyRef(Ty C::* member, ClassDefine const* def) {
-    using Raw = RawType<Ty>;
+    using Raw = concepts::RawType<Ty>;
     if constexpr (IsJsValueLike_v<Raw> && std::copyable<Raw>) {
         return bindInstanceProperty<C>(std::forward<Ty C::*>(member)); // Value type, can be copied directly
     } else {
