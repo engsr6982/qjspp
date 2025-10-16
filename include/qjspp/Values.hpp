@@ -332,7 +332,7 @@ class Arguments final {
     JSValueConst              thiz_;
     int                       length_;
     JSValueConst*             args_;
-    struct JsManagedResource* wrap_{nullptr};
+    struct JsManagedResource* managed_{nullptr};
 
     friend class JsEngine;
     friend class Function;

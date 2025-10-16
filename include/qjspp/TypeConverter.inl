@@ -68,6 +68,7 @@ struct TypeConverter<T> {
 
 template <typename R, typename... Args>
 Value TypeConverter<std::function<R(Args...)>>::toJs(std::function<R(Args...)> const& /* value */) {
+    // TODO: impl
     throw std::logic_error("UnSupported: cannot convert std::function to Value");
 }
 
@@ -161,7 +162,7 @@ struct TypeConverter<std::variant<Is...>> {
     static TypedVariant tryToCpp(Value const& value) {
         if constexpr (I >= sizeof...(Is)) {
             throw JsException{
-                JsException::Type::RangeError,
+                JsException::Type::TypeError,
                 "Cannot convert Value to std::variant; no matching type found."
             };
         } else {
@@ -183,7 +184,7 @@ struct TypeConverter<std::monostate> {
         if (value.isUndefined() || value.isNull()) {
             return std::monostate{};
         }
-        throw JsException{"Expected null/undefined for std::monostate"};
+        [[unlikely]] throw JsException{JsException::Type::TypeError, "Expected null/undefined for std::monostate"};
     }
 };
 
@@ -222,7 +223,9 @@ template <typename T>
     if constexpr (std::is_lvalue_reference_v<RequestedT>) { // 需要 U&
         if constexpr (std::is_pointer_v<std::remove_reference_t<ConvRet>>) {
             auto p = Conv::toCpp(value); // 返回 U*
-            if (p == nullptr) throw std::runtime_error("TypeConverter::toCpp returned a null pointer.");
+            if (p == nullptr) [[unlikely]] {
+                throw std::runtime_error("TypeConverter::toCpp returned a null pointer.");
+            }
             return static_cast<RequestedT&>(*p); // 返回 U&
         } else if constexpr (std::is_lvalue_reference_v<ConvRet>
                              || std::is_const_v<std::remove_reference_t<RequestedT>>) {

@@ -33,7 +33,7 @@ JsEngine* JsScope::currentEngine() {
 
 JsEngine& JsScope::currentEngineChecked() {
     auto current = currentEngine();
-    if (current == nullptr) {
+    if (current == nullptr) [[unlikely]] {
         throw std::logic_error("Failed to get current engine, no JsScope is active!");
     }
     return *current;

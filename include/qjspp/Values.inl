@@ -32,7 +32,10 @@ T Value::as() const {
     } else if constexpr (std::is_same_v<T, Function>) {
         return asFunction();
     }
-    throw JsException("Unable to convert Value to T, forgot to add if branch?");
+    [[unlikely]] throw JsException(
+        JsException::Type::InternalError,
+        "Unable to convert Value to T, forgot to add if branch?"
+    );
 }
 
 

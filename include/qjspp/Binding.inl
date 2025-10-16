@@ -118,8 +118,8 @@ inline decltype(auto) ConvertArgsToTuple(Arguments const& args, std::index_seque
 // Function -> std::function
 template <typename R, typename... Args>
 inline decltype(auto) WrapCallback(Value const& value) {
-    if (!value.isFunction()) {
-        throw JsException("expected function");
+    if (!value.isFunction()) [[unlikely]] {
+        throw JsException(JsException::Type::TypeError, "expected function");
     }
     auto engine = JsScope::currentEngine();
     auto scoped = ScopedValue{engine, value};
@@ -174,8 +174,8 @@ FunctionCallback bindStaticFunction(Func&& func) {
         using Tuple        = typename Traits::ArgsTuple;
         constexpr size_t N = std::tuple_size_v<Tuple>;
 
-        if (args.length() != N) {
-            throw JsException("argument count mismatch");
+        if (args.length() != N) [[unlikely]] {
+            throw JsException(JsException::Type::TypeError, "argument count mismatch");
         }
 
         if constexpr (std::is_void_v<R>) {
@@ -191,13 +191,18 @@ FunctionCallback bindStaticFunction(Func&& func) {
 template <typename... Func>
 FunctionCallback bindStaticOverloadedFunction(Func&&... funcs) {
     std::vector functions = {bindStaticFunction(std::forward<Func>(funcs))...};
+
+    // TODO: consider optimizing overload dispatch (e.g. arg-count lookup)
+    // if we ever hit cases with >3 overloads. Current linear dispatch is ideal
+    // for small sets and keeps the common path fast.
+
     return [fs = std::move(functions)](Arguments const& args) -> Value {
         for (size_t i = 0; i < sizeof...(Func); ++i) {
             try {
                 return std::invoke(fs[i], args);
             } catch (JsException const&) {
-                if (i == sizeof...(Func) - 1) {
-                    throw JsException{"no overload found"};
+                if (i == sizeof...(Func) - 1) [[unlikely]] {
+                    throw JsException{JsException::Type::TypeError, "no overload found"};
                 }
             }
         }
@@ -273,8 +278,8 @@ InstanceMethodCallback bindInstanceMethod(Func&& fn) {
         using Tuple        = typename Traits::ArgsTuple;
         constexpr size_t N = std::tuple_size_v<Tuple>;
 
-        if (args.length() != N) {
-            throw JsException("argument count mismatch");
+        if (args.length() != N) [[unlikely]] {
+            throw JsException(JsException::Type::TypeError, "argument count mismatch");
         }
 
         auto typedInstance = static_cast<C*>(inst);
@@ -308,13 +313,18 @@ InstanceMethodCallback bindInstanceMethod(Func&& fn) {
 template <typename C, typename... Func>
 InstanceMethodCallback bindInstanceOverloadedMethod(Func&&... funcs) {
     std::vector functions = {bindInstanceMethod<C>(std::forward<Func>(funcs))...};
+
+    // TODO: consider optimizing overload dispatch (e.g. arg-count lookup)
+    // if we ever hit cases with >3 overloads. Current linear dispatch is ideal
+    // for small sets and keeps the common path fast.
+
     return [fs = std::move(functions)](void* inst, Arguments const& args) -> Value {
         for (size_t i = 0; i < sizeof...(Func); ++i) {
             try {
                 return std::invoke(fs[i], inst, args);
             } catch (JsException const&) {
-                if (i == sizeof...(Func) - 1) {
-                    throw JsException{"no overload found"};
+                if (i == sizeof...(Func) - 1) [[unlikely]] {
+                    throw JsException{JsException::Type::TypeError, "no overload found"};
                 }
             }
         }
@@ -362,14 +372,17 @@ InstanceGetterCallback bindInstanceGetterRef(Fn&& fn, ClassDefine const* def) {
         static_assert(std::is_pointer_v<Ret>, "InstanceGetterRef must return a pointer");
 
         auto typeId = reflection::getTypeId<concepts::RawType<Ret>>();
-        if (typeId != def->typeId_) {
+        if (typeId != def->typeId_) [[unlikely]] {
             throw JsException{
-                JsException::Type::TypeError,
+                JsException::Type::InternalError,
                 "Type mismatch, ClassDefine::typeId_ and lambda return value are not the same type"
             };
         }
-        if (!arguments.hasThiz()) {
-            throw JsException{"Cannot access class member; the current access does not have a valid 'this' reference."};
+        if (!arguments.hasThiz()) [[unlikely]] {
+            throw JsException{
+                JsException::Type::TypeError,
+                "Cannot access class member; the current access does not have a valid 'this' reference."
+            };
         }
 
         decltype(auto) result = std::invoke(f, static_cast<C*>(inst)); // const T* / T*

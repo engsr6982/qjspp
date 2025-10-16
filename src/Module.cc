@@ -82,7 +82,7 @@ void ModuleDefine::_performExports(JsEngine* engine, JSContext* ctx, JSModuleDef
         }
 
         if (!ctor) {
-            ctor = engine->createJavaScriptClassOf(*def); // 无缓存进行注册
+            ctor = engine->newJsClass(*def); // 无缓存进行注册
         }
 
         JsException::check(JS_SetModuleExport(ctx, module, def->name_.c_str(), JS_DupValue(ctx, Value::extract(ctor))));

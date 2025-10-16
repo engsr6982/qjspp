@@ -142,12 +142,12 @@ public:
     void invokeUnhandledJsException(JsException const& exception, UnhandledExceptionOrigin origin);
 
 private:
-    using RawFunctionCallback = Value (*)(const Arguments&, void*, void*, bool constructCall);
-    Object   createJavaScriptClassOf(ClassDefine const& def);
-    Function createQuickJsCFunction(void* data1, void* data2, RawFunctionCallback cb);
-    Object   createConstructor(ClassDefine const& def);
-    Object   createPrototype(ClassDefine const& def);
-    void     implStaticRegister(Object& ctor, StaticMemberDefine const& def);
+    using RawFunctionCallback = Value (*)(Arguments const&, void*, void*);
+    Object   newJsClass(ClassDefine const& def);
+    Function newManagedRawFunction(void* data1, void* data2, RawFunctionCallback cb) const;
+    Object   newJsConstructor(ClassDefine const& def) const;
+    Object   newJsPrototype(ClassDefine const& def) const;
+    void     implStaticRegister(Object& ctor, StaticMemberDefine const& def) const;
     Object   implRegisterEnum(EnumDefine const& def);
 
     ::JSRuntime* runtime_{nullptr};
@@ -164,7 +164,7 @@ private:
 
 #ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
     JSAtom toStringTagSymbol_{}; // for class、enum...
-    void   patchToStringTag(Object& obj, std::string_view tag) const;
+    void   updateToStringTag(Object& obj, std::string_view tag) const;
 #endif
 
     UnhandledJsExceptionCallback unhandledJsExceptionCallback_{nullptr};

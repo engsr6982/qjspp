@@ -37,7 +37,7 @@ ValueType Value::type() const {
     } else if (isFunction()) {
         return ValueType::Function;
     }
-    throw JsException("Unknown type, did you forget to add if branch?");
+    [[unlikely]] throw JsException(JsException::Type::InternalError, "Unknown type, did you forget to add if branch?");
 }
 
 bool Value::isUninitialized() const { return JS_IsUninitialized(val_); }
@@ -52,39 +52,39 @@ bool Value::isArray() const { return JS_IsArray(val_); }
 bool Value::isFunction() const { return JS_IsFunction(JsScope::currentContextChecked(), val_); }
 
 Undefined Value::asUndefined() const {
-    if (!isUndefined()) throw JsException{"can't convert to Undefined"};
+    if (!isUndefined()) throw JsException{JsException::Type::InternalError, "can't convert to Undefined"};
     return Undefined{val_};
 }
 Null Value::asNull() const {
-    if (!isNull()) throw JsException{"can't convert to Null"};
+    if (!isNull()) throw JsException{JsException::Type::InternalError, "can't convert to Null"};
     return Null{val_};
 }
 Boolean Value::asBoolean() const {
-    if (!isBoolean()) throw JsException{"can't convert to Boolean"};
+    if (!isBoolean()) throw JsException{JsException::Type::InternalError, "can't convert to Boolean"};
     return Boolean{val_};
 }
 Number Value::asNumber() const {
-    if (!isNumber()) throw JsException{"can't convert to Number"};
+    if (!isNumber()) throw JsException{JsException::Type::InternalError, "can't convert to Number"};
     return Number{val_};
 }
 BigInt Value::asBigInt() const {
-    if (!isBigInt()) throw JsException{"can't convert to BigInt"};
+    if (!isBigInt()) throw JsException{JsException::Type::InternalError, "can't convert to BigInt"};
     return BigInt{val_};
 }
 String Value::asString() const {
-    if (!isString()) throw JsException{"can't convert to String"};
+    if (!isString()) throw JsException{JsException::Type::InternalError, "can't convert to String"};
     return String{val_};
 }
 Object Value::asObject() const {
-    if (!isObject()) throw JsException{"can't convert to Object"};
+    if (!isObject()) throw JsException{JsException::Type::InternalError, "can't convert to Object"};
     return Object{val_};
 }
 Array Value::asArray() const {
-    if (!isArray()) throw JsException{"can't convert to Array"};
+    if (!isArray()) throw JsException{JsException::Type::InternalError, "can't convert to Array"};
     return Array{val_};
 }
 Function Value::asFunction() const {
-    if (!isFunction()) throw JsException{"can't convert to Function"};
+    if (!isFunction()) throw JsException{JsException::Type::InternalError, "can't convert to Function"};
     return Function{val_};
 }
 
@@ -209,8 +209,8 @@ std::string String::value() const {
     auto   ctx = JsScope::currentContextChecked();
     size_t len{};
     auto   cstr = JS_ToCStringLen(ctx, &len, val_);
-    if (cstr == nullptr) {
-        throw JsException{"failed to convert String to std::string"};
+    if (cstr == nullptr) [[unlikely]] {
+        throw JsException{JsException::Type::InternalError, "Failed to convert String to std::string"};
     }
     std::string copy{cstr, len};
     JS_FreeCString(ctx, cstr);
@@ -335,9 +335,9 @@ size_t Array::length() const {
     if (JS_IsNumber(ret)) {
         JS_ToUint32(engine.context_, &length, ret);
         JS_FreeValue(engine.context_, ret);
-    } else {
+    } else [[unlikely]] {
         JS_FreeValue(engine.context_, ret);
-        throw JsException{"Array::length got not a number"};
+        throw JsException{JsException::Type::TypeError, "Array.length got not a number"};
     }
     return length;
 }
@@ -459,8 +459,8 @@ void ScopedValue::reset() {
         val_.reset();
     }
 }
-JsEngine*    ScopedValue::engine() const { return engine_; }
-Value        ScopedValue::value() const { return val_; }
+JsEngine* ScopedValue::engine() const { return engine_; }
+Value     ScopedValue::value() const { return val_; }
 ScopedValue::operator Value() const {
     JsScope lock{engine_};
     return val_;
@@ -481,8 +481,8 @@ Object Arguments::thiz() const { return Value::wrap<Object>(thiz_); }
 
 size_t Arguments::length() const { return length_; }
 
-bool             Arguments::hasJsManagedResource() const { return wrap_ != nullptr; }
-JsManagedResource* Arguments::getJsManagedResource() const { return wrap_; }
+bool               Arguments::hasJsManagedResource() const { return managed_ != nullptr; }
+JsManagedResource* Arguments::getJsManagedResource() const { return managed_; }
 
 Value Arguments::operator[](size_t index) const {
     if (index >= length_) {
