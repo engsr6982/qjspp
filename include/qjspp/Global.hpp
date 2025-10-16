@@ -24,3 +24,18 @@ namespace qjspp {
 
 
 } // namespace qjspp
+
+
+// clang-format off
+#if defined(_WIN32) && defined(QJSPP_SHARED) // Windows DLL
+  #ifdef QJSPP_EXPORTS
+    #define QJSPP_EXTERN __declspec(dllexport)
+  #else
+    #define QJSPP_EXTERN __declspec(dllimport)
+  #endif
+#elif defined(__GNUC__) && defined(QJSPP_SHARED) // POSIX shared library
+  #define QJSPP_EXTERN __attribute__((visibility("default")))
+#else // static library
+  #define QJSPP_EXTERN
+#endif
+// clang-format on

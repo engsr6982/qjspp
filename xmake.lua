@@ -42,12 +42,18 @@ target("qjspp")
         add_defines("QJSPP_DEBUG")
     end
 
-    if not has_config("test") then 
-        set_kind("static")
-    else 
+    if has_config("test") then
         set_kind("binary")
         add_files("tests/**.cc")
         add_packages("catch2")
+    else
+        set_kind(get_config("kind") or "static")
+        if is_kind("shared") then
+            add_defines("QJSPP_SHARED")
+            if is_plat("windows") then
+                add_defines("QJSPP_EXPORTS")
+            end
+        end
     end
 
     after_build(function (target)
