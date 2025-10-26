@@ -168,6 +168,9 @@ namespace internal {
 // static
 template <typename Func>
 FunctionCallback bindStaticFunction(Func&& func) {
+    if constexpr (IsFunctionCallback<std::remove_cvref_t<Func>>) {
+        return std::forward<Func>(func);
+    }
     return [f = std::forward<Func>(func)](Arguments const& args) -> Value {
         using Traits       = FunctionTraits<std::decay_t<Func>>;
         using R            = typename Traits::ReturnType;
@@ -272,6 +275,9 @@ InstanceConstructor bindInstanceConstructor() {
 
 template <typename C, typename Func>
 InstanceMethodCallback bindInstanceMethod(Func&& fn) {
+    if constexpr (IsInstanceMethodCallback<std::remove_cvref_t<Func>>) {
+        return std::forward<Func>(fn); // 已是标准的回调，直接转发不需要进行绑定
+    }
     return [f = std::forward<Func>(fn)](void* inst, const Arguments& args) -> Value {
         using Traits       = FunctionTraits<std::decay_t<Func>>;
         using R            = typename Traits::ReturnType;
