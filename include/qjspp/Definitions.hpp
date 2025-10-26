@@ -101,7 +101,6 @@ public:
 
     [[nodiscard]] inline auto manage(void* instance) const { return factory_(instance); }
 
-private:
     explicit ClassDefine(
         std::string            name,
         StaticMemberDefine     staticDef,
@@ -116,9 +115,6 @@ private:
       base_(base),
       typeId_(std::move(typeId)),
       factory_(factory) {}
-
-    template <typename>
-    friend struct ClassDefineBuilder;
 };
 
 

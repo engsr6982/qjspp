@@ -1,5 +1,4 @@
 #include "qjspp/JsEngine.hpp"
-#include "qjspp/Binding.hpp"
 #include "qjspp/JsException.hpp"
 #include "qjspp/JsScope.hpp"
 #include "qjspp/Module.hpp"
