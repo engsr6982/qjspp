@@ -59,7 +59,14 @@ InstanceMemberDefine::InstanceEqualsCallback bindInstanceEquals();
 } // namespace internal
 
 
-template <typename Class>
+enum class ConstructorState {
+    None,    // 默认状态, 未设置状态
+    Normal,  // 默认绑定构造
+    Custom,  // 自定义/自行处理构造逻辑
+    Disabled // 禁止Js构造,自动生成空构造回调
+};
+
+template <typename Class, ConstructorState State = ConstructorState::None>
 struct ClassDefineBuilder {
 private:
     std::string                                 className_;
@@ -69,40 +76,61 @@ private:
     std::vector<InstanceMemberDefine::Method>   instanceFunctions_;
     ClassDefine const*                          base_ = nullptr;
 
-    enum class ConstructorMode { None, Normal, Custom, Disabled };
-    ConstructorMode                                              constructorMode_        = ConstructorMode::None;
     InstanceConstructor                                          userDefinedConstructor_ = nullptr;
     std::unordered_map<size_t, std::vector<InstanceConstructor>> constructors_           = {};
+
+
+    static constexpr bool isInstanceClass = !std::is_void_v<Class>;
+
+    template <ConstructorState OtherState>
+    explicit ClassDefineBuilder(ClassDefineBuilder<Class, OtherState>&& other) noexcept
+    : className_(std::move(other.className_)),
+      staticProperty_(std::move(other.staticProperty_)),
+      staticFunctions_(std::move(other.staticFunctions_)),
+      instanceProperty_(std::move(other.instanceProperty_)),
+      instanceFunctions_(std::move(other.instanceFunctions_)),
+      base_(other.base_),
+      userDefinedConstructor_(std::move(other.userDefinedConstructor_)),
+      constructors_(std::move(other.constructors_)) {
+        // note: other may be in moved-from state
+    }
+
+    template <typename, ConstructorState>
+    friend struct ClassDefineBuilder;
+
 
 public:
     explicit ClassDefineBuilder(std::string className) : className_(std::move(className)) {}
 
     // 注册静态方法（已包装的 JsFunctionCallback） / Register static function (already wrapped)
     template <typename Fn>
+    auto& function(std::string name, Fn&& fn)
         requires(IsFunctionCallback<Fn>)
-    ClassDefineBuilder<Class>& function(std::string name, Fn&& fn) {
+    {
         staticFunctions_.emplace_back(std::move(name), std::forward<Fn>(fn));
         return *this;
     }
 
     // 注册静态方法（自动包装） / Register static function (wrap C++ callable)
     template <typename Fn>
+    auto& function(std::string name, Fn&& fn)
         requires(!IsFunctionCallback<Fn>)
-    ClassDefineBuilder<Class>& function(std::string name, Fn&& fn) {
+    {
         staticFunctions_.emplace_back(std::move(name), internal::bindStaticFunction(std::forward<Fn>(fn)));
         return *this;
     }
 
     // 注册重载静态方法 / Register overloaded static functions
     template <typename... Fn>
-        requires(sizeof...(Fn) > 1 && (!IsFunctionCallback<Fn> && ...))
-    ClassDefineBuilder<Class>& function(std::string name, Fn&&... fn) {
+    auto& function(std::string name, Fn&&... fn)
+        requires(sizeof...(Fn) > 1)
+    {
         staticFunctions_.emplace_back(std::move(name), internal::bindStaticOverloadedFunction(std::forward<Fn>(fn)...));
         return *this;
     }
 
     // 注册静态属性（回调形式）/ Static property with raw callback
-    ClassDefineBuilder<Class>& property(std::string name, GetterCallback getter, SetterCallback setter = nullptr) {
+    auto& property(std::string name, GetterCallback getter, SetterCallback setter = nullptr) {
         staticProperty_.emplace_back(std::move(name), std::move(getter), std::move(setter));
         return *this;
     }
@@ -111,7 +139,7 @@ public:
     // 注意：绑定生成的属性默认采用值传递（即：toJs、toCpp 均拷贝实例）
     // note: the default binding of the property uses value passing (i.e. toJs, toCpp all copy instances)
     template <typename Ty>
-    ClassDefineBuilder<Class>& property(std::string name, Ty* member) {
+    auto& property(std::string name, Ty* member) {
         auto gs = internal::bindStaticProperty<Ty>(member);
         staticProperty_.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
         return *this;
@@ -124,79 +152,71 @@ public:
      * Bind a default constructor. C must be constructible with specified arguments.
      */
     template <typename... Args>
-        requires(!std::is_void_v<Class>)
-    ClassDefineBuilder<Class>& constructor() {
+    auto constructor()
+        requires(isInstanceClass && (State == ConstructorState::None || State == ConstructorState::Normal))
+    {
         static_assert(
+            // 非聚合类，用户传入的参数包必须能构造 Class，以避免意外的隐式行为
             !std::is_aggregate_v<Class> && std::is_constructible_v<Class, Args...>,
             "Constructor must be callable with the specified arguments"
         );
-        if (constructorMode_ == ConstructorMode::Custom)
-            throw std::logic_error("Cannot mix constructor() with customConstructor()");
-        if (constructorMode_ == ConstructorMode::Disabled)
-            throw std::logic_error("Cannot mix constructor() with disableConstructor()");
-
         constexpr size_t N = sizeof...(Args);
-        constructorMode_   = ConstructorMode::Normal;
         constructors_[N].emplace_back(internal::bindInstanceConstructor<Class, Args...>());
-        return *this;
+
+        if constexpr (State == ConstructorState::Normal) {
+            return *this; // 对于多构造重载(多次调用constructor)直接返回引用
+        }
+        ClassDefineBuilder<Class, ConstructorState::Normal> newBuilder(std::move(*this));
+        return newBuilder; // NRVO/move
     }
 
     /**
      * 自定义构造逻辑。返回对象指针。
      * Register a custom constructor. Should return a pointer to the instance.
      */
-    template <typename T = Class>
-        requires(!std::is_void_v<T>)
-    ClassDefineBuilder<Class>& customConstructor(InstanceConstructor ctor) {
-        if (constructorMode_ == ConstructorMode::Normal)
-            throw std::logic_error("Cannot mix customConstructor() with constructor()");
-        if (constructorMode_ == ConstructorMode::Disabled)
-            throw std::logic_error("Cannot mix customConstructor() with disableConstructor()");
-        constructorMode_        = ConstructorMode::Custom;
+    auto customConstructor(InstanceConstructor ctor)
+        requires(isInstanceClass && State == ConstructorState::None)
+    {
         userDefinedConstructor_ = std::move(ctor);
-        return *this;
+        ClassDefineBuilder<Class, ConstructorState::Custom> newBuilder(std::move(*this));
+        return newBuilder; // NRVO/move
     }
 
     /**
      * 禁用构造函数，使 JavaScript 无法构造此类。
      * Disable constructor from being called in JavaScript.
      */
-    template <typename T = Class>
-        requires(!std::is_void_v<T>)
-    ClassDefineBuilder<Class>& disableConstructor() {
-        if (constructorMode_ == ConstructorMode::Normal)
-            throw std::logic_error("Cannot mix disableConstructor() with constructor()");
-        if (constructorMode_ == ConstructorMode::Custom)
-            throw std::logic_error("Cannot mix disableConstructor() with customConstructor()");
-        constructorMode_        = ConstructorMode::Disabled;
+    auto disableConstructor()
+        requires(isInstanceClass && State == ConstructorState::None)
+    {
         userDefinedConstructor_ = [](Arguments const&) { return nullptr; };
-        return *this;
+        ClassDefineBuilder<Class, ConstructorState::Disabled> newBuilder(std::move(*this));
+        return newBuilder; // NRVO/move
     }
 
     // 注册实例方法（已包装）/ Instance method with JsInstanceMethodCallback
     template <typename Fn>
-        requires(!std::is_void_v<Class> && IsInstanceMethodCallback<Fn>)
-    ClassDefineBuilder<Class>& instanceMethod(std::string name, Fn&& fn) {
+    auto& instanceMethod(std::string name, Fn&& fn)
+        requires(isInstanceClass && IsInstanceMethodCallback<Fn>)
+    {
         instanceFunctions_.emplace_back(std::move(name), std::forward<Fn>(fn));
         return *this;
     }
 
     // 实例方法（自动包装）/ Instance method with automatic binding
     template <typename Fn>
-        requires(!std::is_void_v<Class> && !IsInstanceMethodCallback<Fn> && std::is_member_function_pointer_v<Fn>)
-    ClassDefineBuilder<Class>& instanceMethod(std::string name, Fn&& fn) {
+    auto& instanceMethod(std::string name, Fn&& fn)
+        requires(isInstanceClass && !IsInstanceMethodCallback<Fn> && std::is_member_function_pointer_v<Fn>)
+    {
         instanceFunctions_.emplace_back(std::move(name), internal::bindInstanceMethod<Class>(std::forward<Fn>(fn)));
         return *this;
     }
 
     // 实例重载方法 / Overloaded instance methods
     template <typename... Fn>
-        requires(
-            !std::is_void_v<Class>
-            && (sizeof...(Fn) > 1 && (!IsInstanceMethodCallback<Fn> && ...)
-                && (std::is_member_function_pointer_v<Fn> && ...))
-        )
-    ClassDefineBuilder<Class>& instanceMethod(std::string name, Fn&&... fn) {
+    auto& instanceMethod(std::string name, Fn&&... fn)
+        requires(isInstanceClass && sizeof...(Fn) > 1 && (std::is_member_function_pointer_v<Fn> && ...))
+    {
         instanceFunctions_.emplace_back(
             std::move(name),
             internal::bindInstanceOverloadedMethod<Class>(std::forward<Fn>(fn)...)
@@ -205,9 +225,9 @@ public:
     }
 
     // 实例属性（回调）/ Instance property with callbacks
-    ClassDefineBuilder<Class>&
-    instanceProperty(std::string name, InstanceGetterCallback getter, InstanceSetterCallback setter = nullptr) {
-        static_assert(!std::is_void_v<Class>, "Only instance class can have instanceProperty");
+    auto& instanceProperty(std::string name, InstanceGetterCallback getter, InstanceSetterCallback setter = nullptr)
+        requires isInstanceClass
+    {
         instanceProperty_.emplace_back(std::move(name), std::move(getter), std::move(setter));
         return *this;
     }
@@ -215,8 +235,9 @@ public:
     // 实例属性（成员变量）/ Instance property from T C::* member
     // 注意：此回调适用于值类型成员，qjspp 会进行拷贝传递
     template <typename Member>
-        requires(!std::is_void_v<Class> && std::is_member_object_pointer_v<Member>)
-    ClassDefineBuilder<Class>& instanceProperty(std::string name, Member member) {
+    auto& instanceProperty(std::string name, Member member)
+        requires(isInstanceClass && std::is_member_object_pointer_v<Member>)
+    {
         auto gs = internal::bindInstanceProperty<Class>(std::forward<Member>(member));
         instanceProperty_.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
         return *this;
@@ -224,8 +245,9 @@ public:
 
     // 实例属性（成员变量，对象引用）/ Instance property from T C::* member with reference
     template <typename Member>
-        requires(!std::is_void_v<Class> && std::is_member_object_pointer_v<Member>)
-    auto& instancePropertyRef(std::string name, Member member, ClassDefine const& def) {
+    auto& instancePropertyRef(std::string name, Member member, ClassDefine const& def)
+        requires(isInstanceClass && std::is_member_object_pointer_v<Member>)
+    {
         auto gs = internal::bindInstancePropertyRef<Class>(std::forward<Member>(member), &def);
         instanceProperty_.emplace_back(std::move(name), std::move(gs.first), std::move(gs.second));
         return *this;
@@ -236,23 +258,21 @@ public:
      * @note 基类必须为一个实例类
      * @note 由于 QuickJs C API 限制，目前只能做到 ES5 继承(无法继承静态属性、方法)
      */
-    ClassDefineBuilder<Class>& extends(ClassDefine const& parent) {
-        static_assert(!std::is_void_v<Class>, "Only instance classes can set up inheritance.");
+    auto& extends(ClassDefine const& parent)
+        requires isInstanceClass
+    {
         base_ = &parent;
         return *this;
     }
 
     [[nodiscard]] ClassDefine build() {
-        bool const isInstanceClass = !std::is_void_v<Class>;
-
         InstanceConstructor ctor = nullptr;
-        if (isInstanceClass) {
-            if (constructorMode_ == ConstructorMode::Custom || constructorMode_ == ConstructorMode::Disabled) {
-                if (userDefinedConstructor_ == nullptr) {
-                    throw std::logic_error("No constructor provided");
-                }
+        if constexpr (isInstanceClass) {
+            static_assert(State != ConstructorState::None, "No constructor provided");
+            if constexpr (State == ConstructorState::Custom || State == ConstructorState::Disabled) {
                 ctor = std::move(userDefinedConstructor_);
             } else {
+                // Normal
                 ctor = [fn = std::move(constructors_)](Arguments const& arguments) -> void* {
                     auto argc = arguments.length();
                     auto iter = fn.find(argc);
@@ -271,16 +291,23 @@ public:
             }
         }
 
-        // generate managed resource factory
+        // factory：对于不可构造类（或明确禁用构造），不生成删除器（避免 pImpl 单例问题）
         ClassDefine::ManagedResourceFactory factory = nullptr;
         if constexpr (isInstanceClass) {
-            factory = [](void* instance) -> std::unique_ptr<JsManagedResource> {
-                return JsManagedResource::make(
-                    instance,
-                    [](void* res) -> void* { return res; },
-                    [](void* res) -> void { delete static_cast<Class*>(res); }
-                );
-            };
+            if constexpr (State != ConstructorState::Disabled) {
+                factory = [](void* instance) -> std::unique_ptr<JsManagedResource> {
+                    return JsManagedResource::make(
+                        instance,
+                        [](void* res) -> void* { return res; },
+                        [](void* res) -> void { delete static_cast<Class*>(res); }
+                    );
+                };
+            } else {
+                // script cannot construct instances; do not provide delete (C++ owns lifetime)
+                factory = [](void* instance) -> std::unique_ptr<JsManagedResource> {
+                    return JsManagedResource::make(instance, [](void* res) -> void* { return res; }, nullptr);
+                };
+            }
         }
 
         // generate script helper function
@@ -304,7 +331,7 @@ public:
 
 
 template <typename C>
-inline ClassDefineBuilder<C> defineClass(std::string className) {
+inline auto defineClass(std::string className) {
     return ClassDefineBuilder<C>(std::move(className));
 }
 
