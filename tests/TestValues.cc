@@ -190,4 +190,34 @@ TEST_CASE_METHOD(TestEngineFixture, "Values") {
             Catch::Matchers::ExceptionMessageMatcher("js throw")
         );
     }
+
+    SECTION("Test ConstructorFunction") {
+        engine_->globalThis().set(
+            "reg", //
+            qjspp::Function{[](qjspp::Arguments const& arguments) -> qjspp::Value {
+                REQUIRE(arguments.length() == 1);
+                REQUIRE(arguments[0].isFunction());
+
+                auto fn = arguments[0].asFunction();
+                REQUIRE(fn.isConstructor());
+
+                auto res = fn.callAsConstructor();
+                REQUIRE(res.isObject());
+
+                auto obj = res.asObject();
+                REQUIRE(obj.has("bar"));
+
+                REQUIRE(obj.get("bar").asFunction().call(obj, {}).asString().value() == "bar!");
+                return res;
+            }}
+        );
+        engine_->eval(R"(
+            class Foo {
+                bar() {
+                    return "bar!";
+                }
+            }
+            reg(Foo);
+        )");
+    }
 }

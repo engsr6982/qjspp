@@ -429,6 +429,23 @@ Value Function::call(Value const& thiz, std::span<const Value> args) const {
 
 Value Function::call() const { return call(Value{}, {}); }
 
+Value Function::callAsConstructor(std::vector<Value> const& args) const {
+    auto& engine = JsScope::currentEngineChecked();
+    if (!JS_IsConstructor(engine.context_, val_)) {
+        throw JsException{JsException::Type::TypeError, "Function is not a constructor"};
+    }
+
+    static_assert(sizeof(Value) == sizeof(JSValue), "Value and JSValue must have the same size");
+    auto* argv = reinterpret_cast<JSValue*>(const_cast<Value*>(args.data())); // fast
+
+    auto res = JS_CallConstructor(engine.context_, val_, static_cast<int>(args.size()), argv);
+    JsException::check(res);
+    engine.pumpJobs();
+    return Value::move<Value>(res);
+}
+
+bool Function::isConstructor() const { return JS_IsConstructor(JsScope::currentContextChecked(), val_); }
+
 #undef IMPL_SPECIALIZE_RAII
 #undef IMPL_SPECIALIZE_COPY_AND_MOVE
 

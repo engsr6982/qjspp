@@ -284,6 +284,10 @@ public:
     Value call(Value const& thiz, std::span<const Value> args) const;
 
     Value call() const;
+
+    Value callAsConstructor(std::vector<Value> const& args = {}) const;
+
+    bool isConstructor() const;
 };
 
 #undef SPECIALIZE_ALL
