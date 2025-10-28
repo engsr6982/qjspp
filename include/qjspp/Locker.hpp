@@ -7,13 +7,13 @@
 namespace qjspp {
 
 
-class JsScope final {
+class Locker final {
 public:
-    explicit JsScope(JsEngine& engine);
-    explicit JsScope(JsEngine* engine);
-    ~JsScope();
+    explicit Locker(JsEngine& engine);
+    explicit Locker(JsEngine* engine);
+    ~Locker();
 
-    QJSPP_DISABLE_COPY_MOVE(JsScope);
+    QJSPP_DISABLE_COPY_MOVE(Locker);
     QJSPP_DISABLE_NEW();
 
     static JsEngine* currentEngine();
@@ -29,20 +29,20 @@ public:
 private:
     // 作用域链
     JsEngine* engine_{nullptr};
-    JsScope*  prev_{nullptr};
+    Locker*   prev_{nullptr};
 
-    static thread_local JsScope* gCurrentScope_;
-    friend class ExitJsScope;
+    static thread_local Locker* gCurrentScope_;
+    friend class Unlocker;
 };
 
-class ExitJsScope final {
+class Unlocker final {
     JsEngine* engine_{nullptr};
 
 public:
-    explicit ExitJsScope();
-    ~ExitJsScope();
+    explicit Unlocker();
+    ~Unlocker();
 
-    QJSPP_DISABLE_COPY_MOVE(ExitJsScope);
+    QJSPP_DISABLE_COPY_MOVE(Unlocker);
     QJSPP_DISABLE_NEW();
 };
 

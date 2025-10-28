@@ -1,13 +1,13 @@
-#include "qjspp/JsScope.hpp"
 #include "qjspp/JsEngine.hpp"
+#include "qjspp/Locker.hpp"
 #include <mutex>
 
 namespace qjspp {
 
-thread_local JsScope* JsScope::gCurrentScope_ = nullptr;
+thread_local Locker* Locker::gCurrentScope_ = nullptr;
 
-JsScope::JsScope(JsEngine& engine) : JsScope(&engine) {}
-JsScope::JsScope(JsEngine* engine) : engine_(engine), prev_(gCurrentScope_) {
+Locker::Locker(JsEngine& engine) : Locker(&engine) {}
+Locker::Locker(JsEngine* engine) : engine_(engine), prev_(gCurrentScope_) {
     if (prev_) {
         this->prev_->engine_->mutex_.unlock();
     }
@@ -15,7 +15,7 @@ JsScope::JsScope(JsEngine* engine) : engine_(engine), prev_(gCurrentScope_) {
     gCurrentScope_ = this;
     JS_UpdateStackTop(this->engine_->runtime_);
 }
-JsScope::~JsScope() {
+Locker::~Locker() {
     this->engine_->pumpJobs();
     this->engine_->mutex_.unlock();
     if (prev_) {
@@ -24,38 +24,38 @@ JsScope::~JsScope() {
     gCurrentScope_ = this->prev_;
 }
 
-JsEngine* JsScope::currentEngine() {
+JsEngine* Locker::currentEngine() {
     if (gCurrentScope_) {
         return gCurrentScope_->engine_;
     }
     return nullptr;
 }
 
-JsEngine& JsScope::currentEngineChecked() {
+JsEngine& Locker::currentEngineChecked() {
     auto current = currentEngine();
     if (current == nullptr) [[unlikely]] {
-        throw std::logic_error("Failed to get current engine, no JsScope is active!");
+        throw std::logic_error("Failed to get current engine, no Locker is active!");
     }
     return *current;
 }
 
-std::tuple<::JSRuntime*, ::JSContext*> JsScope::currentRuntimeAndContextChecked() {
+std::tuple<::JSRuntime*, ::JSContext*> Locker::currentRuntimeAndContextChecked() {
     auto& current = currentEngineChecked();
     return std::make_tuple(current.runtime_, current.context_);
 }
 
-::JSRuntime* JsScope::currentRuntimeChecked() { return currentEngineChecked().runtime_; }
+::JSRuntime* Locker::currentRuntimeChecked() { return currentEngineChecked().runtime_; }
 
-::JSContext* JsScope::currentContextChecked() { return currentEngineChecked().context_; }
+::JSContext* Locker::currentContextChecked() { return currentEngineChecked().context_; }
 
 
-ExitJsScope::ExitJsScope() {
-    if (JsScope::gCurrentScope_) {
-        this->engine_ = JsScope::gCurrentScope_->engine_;
+Unlocker::Unlocker() {
+    if (Locker::gCurrentScope_) {
+        this->engine_ = Locker::gCurrentScope_->engine_;
         this->engine_->mutex_.unlock();
     }
 }
-ExitJsScope::~ExitJsScope() {
+Unlocker::~Unlocker() {
     if (this->engine_) {
         this->engine_->mutex_.lock();
     }

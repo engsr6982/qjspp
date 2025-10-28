@@ -4,7 +4,7 @@
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
-#include "qjspp/JsScope.hpp"
+#include "qjspp/Locker.hpp"
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
 #include <algorithm>
@@ -24,7 +24,7 @@ std::string append(std::string const& a, int b) { return a + std::to_string(b); 
 
 
 TEST_CASE_METHOD(TestEngineFixture, "Values") {
-    qjspp::JsScope scope(engine_);
+    qjspp::Locker scope(engine_);
 
     SECTION("Value::is*") {
         auto empty = qjspp::Value{};

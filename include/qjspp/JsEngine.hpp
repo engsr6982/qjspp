@@ -207,8 +207,8 @@ private:
         ~PauseGc();
     };
 
-    friend class JsScope;
-    friend class ExitJsScope;
+    friend class Locker;
+    friend class Unlocker;
     friend class Array; // 访问 lengthAtom_
     friend class Function;
     friend class PauseGc;

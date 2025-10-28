@@ -4,14 +4,14 @@
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
-#include "qjspp/JsScope.hpp"
+#include "qjspp/Locker.hpp"
 #include "qjspp/Values.hpp"
 #include <algorithm>
 #include <filesystem>
 
 
 TEST_CASE_METHOD(TestEngineFixture, "Test JsEngine") {
-    qjspp::JsScope scope(engine_);
+    qjspp::Locker scope(engine_);
 
     SECTION("Test JsEngine::eval") {
         auto val = engine_->eval("1+1");

@@ -1,6 +1,6 @@
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
-#include "qjspp/JsScope.hpp"
+#include "qjspp/Locker.hpp"
 #include "qjspp/Module.hpp"
 #include "qjspp/TaskQueue.hpp"
 #include "qjspp/Types.hpp"
@@ -34,7 +34,7 @@ void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
         auto engine = const_cast<JsEngine*>(managed_resource->engine_);
 
         PauseGc pauseGc(engine); // 暂停GC
-        JsScope lock(engine);    // 同步线程析构
+        Locker lock(engine);    // 同步线程析构
         delete managed_resource;
     }
 }
@@ -183,7 +183,7 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
 
 #ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
     {
-        JsScope scope{this};
+        Locker scope{this};
         auto    sym = eval("(Symbol.toStringTag)"); // 获取 Symbol.toStringTag
         if (!JS_IsSymbol(Value::extract(sym))) {
             throw std::logic_error("Failed to get Symbol.toStringTag");
@@ -207,7 +207,7 @@ JsEngine::~JsEngine() {
     JS_FreeAtom(context_, toStringTagSymbol_);
 #endif
     {
-        JsScope scope{this};
+        Locker scope{this};
         for (auto&& [def, obj] : nativeEnums_) obj.reset();
         for (auto&& [def, obj] : nativeStaticClasses_) obj.reset();
         for (auto&& [def, data] : nativeInstanceClasses_) {
@@ -236,7 +236,7 @@ void JsEngine::pumpJobs() {
             [](void* data) {
                 auto       engine = static_cast<JsEngine*>(data);
                 JSContext* ctx    = nullptr;
-                JsScope    lock(engine);
+                Locker    lock(engine);
                 while (JS_ExecutePendingJob(engine->runtime_, &ctx) > 0) {}
                 engine->pumpScheduled_ = false;
             },
@@ -355,13 +355,13 @@ Object JsEngine::globalThis() const {
 bool JsEngine::isDestroying() const { return isDestroying_; }
 
 void JsEngine::gc() {
-    JsScope lock(this);
+    Locker lock(this);
     if (isDestroying() || pauseGcCount_ != 0) return;
     JS_RunGC(runtime_);
 }
 
 size_t JsEngine::getMemoryUsage() {
-    JsScope       lock(this);
+    Locker       lock(this);
     JSMemoryUsage usage;
     JS_ComputeMemoryUsage(runtime_, &usage);
     return usage.memory_used_size;

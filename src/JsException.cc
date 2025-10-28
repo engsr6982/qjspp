@@ -1,5 +1,5 @@
 #include "qjspp/JsException.hpp"
-#include "qjspp/JsScope.hpp"
+#include "qjspp/Locker.hpp"
 #include "qjspp/Values.hpp"
 #include "quickjs.h"
 #include <exception>
@@ -40,7 +40,7 @@ std::string JsException::message() const noexcept {
 
 Value JsException::exception() const noexcept {
     if (data_->exception_.isUndefined()) {
-        auto ctx = JsScope::currentContextChecked();
+        auto ctx = Locker::currentContextChecked();
         switch (data_->type_) {
         case Type::RangeError:
             JS_ThrowRangeError(ctx, "%s", data_->message_.c_str());
@@ -76,8 +76,8 @@ std::string JsException::stacktrace() const noexcept {
 
 JSValue JsException::rethrowToEngine() const {
     JS_Throw(
-        JsScope::currentContextChecked(),
-        JS_DupValue(JsScope::currentContextChecked(), Value::extract(exception()))
+        Locker::currentContextChecked(),
+        JS_DupValue(Locker::currentContextChecked(), Value::extract(exception()))
     );
     return JS_EXCEPTION;
 }
@@ -108,7 +108,7 @@ void JsException::check(JSValue value) {
 
 void JsException::check(int code, const char* msg) {
     if (code < 0) {
-        auto ctx   = JsScope::currentContextChecked();
+        auto ctx   = Locker::currentContextChecked();
         auto error = JS_GetException(ctx);
 
         if (JS_IsObject(error)) {

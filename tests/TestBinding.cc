@@ -6,7 +6,7 @@
 #include "qjspp/Definitions.hpp"
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
-#include "qjspp/JsScope.hpp"
+#include "qjspp/Locker.hpp"
 #include "qjspp/Module.hpp"
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
@@ -50,7 +50,7 @@ qjspp::ClassDefine const UtilDefine =
 
 
 TEST_CASE_METHOD(TestEngineFixture, "Static Binding") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
     engine_->registerClass(UtilDefine);
 
     REQUIRE(engine_->eval("Util.add(1, 2)").asNumber().getInt32() == 3);
@@ -127,7 +127,7 @@ qjspp::ClassDefine const DerivedDefine = qjspp::defineClass<Derived>("Derived")
 
 
 TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
     engine_->registerClass(BaseDefine);
     engine_->registerClass(DerivedDefine);
 
@@ -208,7 +208,7 @@ qjspp::ModuleDefine NativeModuleDef =
     qjspp::defineModule("native").addClass(UtilDefine).addClass(BaseDefine).addClass(DerivedDefine).build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Module Binding") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
 
     engine_->registerModule(NativeModuleDef);
 
@@ -259,7 +259,7 @@ qjspp::ClassDefine TestFormDefine = qjspp::defineClass<TestForm>("TestForm")
                                         .build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Test Callback") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
 
     engine_->registerClass(TestFormDefine);
     engine_->globalThis().set("assert", qjspp::Function{&JsAssert});
@@ -293,7 +293,7 @@ public:
 };
 
 TEST_CASE_METHOD(TestEngineFixture, "Abstract Class") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
 
     auto impl = std::make_shared<FooImpl>();
 
@@ -333,7 +333,7 @@ qjspp::ClassDefine BuilderDefine = qjspp::defineClass<Builder>("Builder")
                                        .build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Builder Pattern") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
 
     engine_->registerClass(BuilderDefine);
     engine_->globalThis().set("assert", qjspp::Function{&JsAssert});
@@ -361,7 +361,7 @@ qjspp::EnumDefine ColorDef_ = qjspp::defineEnum<Color>("Color")
                                   .build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Enum Bind") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
 
     engine_->registerEnum(ColorDef_);
 
@@ -374,7 +374,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Enum Bind") {
 qjspp::ModuleDefine ColorModuleDef_ = qjspp::defineModule("Color").addEnum(ColorDef_).build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Enum Module Bind") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
 
     engine_->registerModule(ColorModuleDef_);
     engine_->globalThis().set("assert", qjspp::Function{&JsAssert});
@@ -396,7 +396,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Enum Module Bind") {
 // toStringTag
 
 TEST_CASE_METHOD(TestEngineFixture, "toStringTag") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
 
     engine_->registerEnum(ColorDef_);
 
@@ -424,7 +424,7 @@ auto ScriptPointMeta = qjspp::defineClass<PointMeta>("PointMeta")
                            .build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Overload Constructor") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
 
     engine_->registerClass(ScriptPointMeta);
     engine_->globalThis().set("assert", qjspp::Function{&JsAssert});
@@ -487,10 +487,10 @@ namespace qjspp {
 template <>
 struct TypeConverter<Vec3> {
     static Value toJs(Vec3 const& ref) {
-        return JsScope::currentEngineChecked().newInstanceOfRaw(ScriptVec3, const_cast<Vec3*>(&ref));
+        return Locker::currentEngineChecked().newInstanceOfRaw(ScriptVec3, const_cast<Vec3*>(&ref));
     }
     static Vec3* toCpp(Value const& val) {
-        return JsScope::currentEngineChecked().getNativeInstanceOf<Vec3>(val.asObject(), ScriptVec3);
+        return Locker::currentEngineChecked().getNativeInstanceOf<Vec3>(val.asObject(), ScriptVec3);
     }
 };
 } // namespace qjspp
@@ -504,7 +504,7 @@ auto ScriptAABB = qjspp::defineClass<AABB>("AABB")
                       .build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Non-value type ref") {
-    qjspp::JsScope scope{engine_};
+    qjspp::Locker scope{engine_};
 
     engine_->registerClass(ScriptVec3);
     engine_->registerClass(ScriptAABB);

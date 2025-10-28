@@ -4,7 +4,7 @@
 #include "qjspp/Global.hpp"
 #include "qjspp/JsEngine.hpp"
 #include "qjspp/JsException.hpp"
-#include "qjspp/JsScope.hpp"
+#include "qjspp/Locker.hpp"
 #include "qjspp/TypeConverter.hpp"
 #include "qjspp/Types.hpp"
 #include "qjspp/Values.hpp"
@@ -121,11 +121,11 @@ inline decltype(auto) WrapCallback(Value const& value) {
     if (!value.isFunction()) [[unlikely]] {
         throw JsException(JsException::Type::TypeError, "expected function");
     }
-    auto engine = JsScope::currentEngine();
-    auto scoped = ScopedValue{engine, value};
+    auto engine = Locker::currentEngine();
+    auto scoped = ScopedJsValue{engine, value};
     return [sc = std::move(scoped)](Args&&... args) -> R {
         auto    engine = sc.engine();
-        JsScope lock{engine};
+        Locker lock{engine};
 
         auto cb = sc.value().asFunction();
         try {

@@ -83,7 +83,7 @@ public:                                                                         
 /**
  * @note JSValue 的封装类
  * @note 注意：每个 Value 都有一个引用计数，Value 内部使用 RAII 管理引用计数
- * @note 注意：Value 析构时栈上需要有活动的 JsScope，否则会抛出 logic_error
+ * @note 注意：Value 析构时栈上需要有活动的 Locker，否则会抛出 logic_error
  */
 class Value final {
     SPECIALIZE_ALL(Value);
@@ -298,28 +298,34 @@ public:
 
 
 /**
- * @note 带作用域的值
- * @note 此类为了解决持有 Value 时析构需要 JsScope 的问题
- * @note 在析构时，会自动在栈上创建 JsScope 保证 Value 安全析构
+ * @class ScopedJsValue
+ * @brief 作用域安全的 JS 值封装类。
+ *
+ * @details
+ * 该类用于在 C++ 侧安全持有一个 JS 值。
+ * 析构时会自动创建一个 Locker，以保证 JS 引擎上下文安全。
+ * 常用于延迟释放 Value 或在非 JS 调用栈中保持 JS 引用。
+ *
+ * @note 适合在非 JS 线程或跨作用域时安全持有 Value。
  */
-class ScopedValue final {
+class ScopedJsValue final {
     JsEngine* engine_{nullptr};
     Value     val_{};
 
 public:
     QJSPP_DISABLE_NEW();
 
-    ScopedValue() = default;
-    ScopedValue(Value value); // need active JsScope
-    explicit ScopedValue(JsEngine* engine, Value val);
+    ScopedJsValue() = default;
+    ScopedJsValue(Value value); // need active Locker
+    explicit ScopedJsValue(JsEngine* engine, Value val);
 
-    ScopedValue(ScopedValue&& other) noexcept;
-    ScopedValue& operator=(ScopedValue&& other) noexcept;
+    ScopedJsValue(ScopedJsValue&& other) noexcept;
+    ScopedJsValue& operator=(ScopedJsValue&& other) noexcept;
 
-    ScopedValue(ScopedValue const& copy);
-    ScopedValue& operator=(ScopedValue const& copy);
+    ScopedJsValue(ScopedJsValue const& copy);
+    ScopedJsValue& operator=(ScopedJsValue const& copy);
 
-    ~ScopedValue();
+    ~ScopedJsValue();
 
     void reset(); // reset engine and value
 
