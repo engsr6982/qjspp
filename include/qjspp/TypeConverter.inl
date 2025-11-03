@@ -189,6 +189,31 @@ struct TypeConverter<std::monostate> {
 };
 
 
+template <typename Ty1, typename Ty2>
+struct TypeConverter<std::pair<Ty1, Ty2>> {
+    static_assert(internal::IsTypeConverterAvailable_v<Ty1>);
+    static_assert(internal::IsTypeConverterAvailable_v<Ty2>);
+
+    static Value toJs(std::pair<Ty1, Ty2> const& pair) {
+        Array array{2};
+        array.set(0, ConvertToJs(pair.first));
+        array.set(1, ConvertToJs(pair.second));
+        return array;
+    }
+    static std::pair<Ty1, Ty2> toCpp(Value const& value) {
+        if (!value.isArray() || value.asArray().length() != 2) {
+            if constexpr (HasDefaultConstructor_v<Ty1> && HasDefaultConstructor_v<Ty2>) {
+                return std::make_pair(Ty1{}, Ty2{});
+            } else {
+                throw JsException{"Invalid argument type, expected array with 2 elements"};
+            }
+        }
+        auto array = value.asArray();
+        return std::make_pair(ConvertToCpp<Ty1>(array.get(0)), ConvertToCpp<Ty2>(array.get(1)));
+    }
+};
+
+
 // internal type
 template <typename T>
     requires IsWrappedType<T>

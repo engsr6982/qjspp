@@ -12,7 +12,7 @@ declare type vector<T> = Array<T>;
  * C++ std::unordered_map
  */
 declare type unordered_map<K extends string, V> = {
-  [key: string]: V;
+    [key: string]: V;
 };
 
 /**
@@ -27,9 +27,9 @@ declare type variant<Args extends readonly unknown[]> = Args[number];
  * export type EventPriority = NativeEnum<["Highest", "High", "Normal", "Low", "Lowest"]>;
  */
 declare type NativeEnum<Keys extends readonly string[]> = {
-  readonly $name: string; // qjspp generated
+    readonly $name: string; // qjspp generated
 } & {
-  readonly [K in Keys[number]]: number;
+    readonly [K in Keys[number]]: number;
 };
 
 /**
@@ -39,5 +39,10 @@ declare type NativeEnum<Keys extends readonly string[]> = {
  * @example class MyClass implements InstanceClassHelper<MyClass> { ... }
  */
 declare interface InstanceClassHelper<T> {
-  $equals(other: T): boolean;
+    $equals(other: T): boolean;
 }
+
+/**
+ * C++ pair
+ */
+declare type pair<K, V> = [K, V];
