@@ -165,9 +165,11 @@ public:
 
         if constexpr (State == ConstructorState::Normal) {
             return *this; // 对于多构造重载(多次调用constructor)直接返回引用
+        } else {
+            // Use an else statement to avoid the C4702 warning
+            ClassDefineBuilder<Class, ConstructorState::Normal> newBuilder(std::move(*this));
+            return newBuilder; // NRVO/move
         }
-        ClassDefineBuilder<Class, ConstructorState::Normal> newBuilder(std::move(*this));
-        return newBuilder; // NRVO/move
     }
 
     /**
