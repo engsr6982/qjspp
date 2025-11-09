@@ -24,13 +24,13 @@ declare type variant<Args extends readonly unknown[]> = Args[number];
 /**
  * C++ enum (qjspp)
  * @example
- * export type EventPriority = NativeEnum<["Highest", "High", "Normal", "Low", "Lowest"]>;
+ * export type EventPriority = NativeEnum<{"Highest":0, "High":1, "Normal":2, "Low":3, "Lowest":4}>;
  */
-declare type NativeEnum<Keys extends readonly string[]> = {
+declare type NativeEnum<Values extends object> = {
     readonly $name: string; // qjspp generated
-} & {
-    readonly [K in Keys[number]]: number;
-};
+} & Values;
+
+declare type EnumValue<T extends NativeEnum<any>> = T[keyof Omit<T, '$name'>];
 
 /**
  * C++ class
