@@ -55,8 +55,6 @@ public:                                                                         
                                                                                                                        \
     bool operator==(Value const& other) const;                                                                         \
                                                                                                                        \
-    operator bool() const;                                                                                             \
-                                                                                                                       \
 private:                                                                                                               \
     explicit TYPE(::JSValue value);                                                                                    \
     ::JSValue val_ { JS_UNDEFINED }
@@ -73,6 +71,10 @@ public:                                                                         
     inline operator Value() const { return this->asValue(); }                                                          \
     bool   operator==(TYPE const& other) const { return operator==(other.asValue()); }
 
+#define SPECIALIZE_VALUE_EXISTS(TYPE)                                                                                  \
+public:                                                                                                                \
+    operator bool() const
+
 // collapsed
 #define SPECIALIZE_ALL(TYPE)                                                                                           \
     SPECIALIZE_COPY_AND_MOVE(TYPE);                                                                                    \
@@ -87,6 +89,7 @@ public:                                                                         
  */
 class Value final {
     SPECIALIZE_ALL(Value);
+    SPECIALIZE_VALUE_EXISTS(Value);
 
 public:
     Value(); // undefined
@@ -147,6 +150,7 @@ public:
 class Undefined final {
     SPECIALIZE_ALL(Undefined);
     SPECIALIZE_NON_VALUE(Undefined);
+    SPECIALIZE_VALUE_EXISTS(Undefined);
 
 public:
     Undefined();
@@ -155,6 +159,7 @@ public:
 class Null final {
     SPECIALIZE_ALL(Null);
     SPECIALIZE_NON_VALUE(Null);
+    SPECIALIZE_VALUE_EXISTS(Null);
 
 public:
     Null();
@@ -165,14 +170,17 @@ class Boolean final {
     SPECIALIZE_NON_VALUE(Boolean);
 
 public:
-    explicit Boolean(bool value);
+    Boolean(bool value);
 
     [[nodiscard]] bool value() const;
+
+    operator bool() const;
 };
 
 class Number final {
     SPECIALIZE_ALL(Number);
     SPECIALIZE_NON_VALUE(Number);
+    SPECIALIZE_VALUE_EXISTS(Number);
 
 public:
     explicit Number(double d);
@@ -189,6 +197,7 @@ public:
 class BigInt final {
     SPECIALIZE_ALL(BigInt);
     SPECIALIZE_NON_VALUE(BigInt);
+    SPECIALIZE_VALUE_EXISTS(BigInt);
 
 public:
     explicit BigInt(int64_t i64);
@@ -201,6 +210,7 @@ public:
 class String final {
     SPECIALIZE_ALL(String);
     SPECIALIZE_NON_VALUE(String);
+    SPECIALIZE_VALUE_EXISTS(String);
 
 public:
     explicit String(std::string_view utf8);
@@ -213,6 +223,7 @@ public:
 class Object final {
     SPECIALIZE_ALL(Object);
     SPECIALIZE_NON_VALUE(Object);
+    SPECIALIZE_VALUE_EXISTS(Object);
 
 public:
     Object();
@@ -243,6 +254,7 @@ public:
 class Array final {
     SPECIALIZE_ALL(Array);
     SPECIALIZE_NON_VALUE(Array);
+    SPECIALIZE_VALUE_EXISTS(Array);
 
 public:
     explicit Array(size_t size = 0);
@@ -263,6 +275,7 @@ public:
 class Function final {
     SPECIALIZE_ALL(Function);
     SPECIALIZE_NON_VALUE(Function);
+    SPECIALIZE_VALUE_EXISTS(Function);
 
     Value callImpl(Value const& thiz, int argc, Value const* argv) const;
 
@@ -295,7 +308,7 @@ public:
 #undef SPECIALIZE_RAII
 #undef SPECIALIZE_FRIEND
 #undef SPECIALIZE_NON_VALUE
-
+#undef SPECIALIZE_VALUE_EXISTS
 
 /**
  * @class ScopedJsValue

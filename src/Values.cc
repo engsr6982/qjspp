@@ -108,8 +108,7 @@ Function Value::asFunction() const {
     }                                                                                                                  \
     bool TYPE::operator==(Value const& other) const {                                                                  \
         return JS_IsStrictEqual(Locker::currentContextChecked(), val_, other.val_);                                    \
-    }                                                                                                                  \
-    TYPE::operator bool() const { return !JS_IsUninitialized(val_) && !JS_IsUndefined(val_) && !JS_IsNull(val_); }
+    }
 
 #define IMPL_SPECIALIZE_COPY_AND_MOVE(TYPE)                                                                            \
     TYPE::TYPE(TYPE const& copy) : val_(JS_DupValue(Locker::currentContextChecked(), copy.val_)) {}                    \
@@ -132,18 +131,23 @@ Function Value::asFunction() const {
         return *this;                                                                                                  \
     }
 
+#define IMPL_SPECIALIZE_VALUE_EXISTS(TYPE)                                                                             \
+    TYPE::operator bool() const { return !JS_IsUninitialized(val_) && !JS_IsUndefined(val_) && !JS_IsNull(val_); }
+
 
 IMPL_SPECIALIZE_RAII(Value);
 IMPL_SPECIALIZE_COPY_AND_MOVE(Value);
-
+IMPL_SPECIALIZE_VALUE_EXISTS(Value);
 
 IMPL_SPECIALIZE_RAII(Undefined);
 IMPL_SPECIALIZE_COPY_AND_MOVE(Undefined);
+IMPL_SPECIALIZE_VALUE_EXISTS(Undefined);
 Undefined::Undefined() : val_(JS_UNDEFINED) {}
 
 
 IMPL_SPECIALIZE_RAII(Null);
 IMPL_SPECIALIZE_COPY_AND_MOVE(Null);
+IMPL_SPECIALIZE_VALUE_EXISTS(Null);
 Null::Null() : val_(JS_NULL) {}
 
 
@@ -151,10 +155,12 @@ IMPL_SPECIALIZE_RAII(Boolean);
 IMPL_SPECIALIZE_COPY_AND_MOVE(Boolean);
 Boolean::Boolean(bool value) : val_{JS_NewBool(Locker::currentContextChecked(), value)} {}
 bool Boolean::value() const { return JS_ToBool(Locker::currentContextChecked(), val_); }
+Boolean::operator bool() const { return value(); }
 
 
 IMPL_SPECIALIZE_RAII(Number);
 IMPL_SPECIALIZE_COPY_AND_MOVE(Number);
+IMPL_SPECIALIZE_VALUE_EXISTS(Number);
 Number::Number(double d) : val_(JS_NewFloat64(Locker::currentContextChecked(), d)) {}
 Number::Number(float f) : Number{static_cast<double>(f)} {}
 Number::Number(int i32) : val_{JS_NewInt32(Locker::currentContextChecked(), i32)} {}
@@ -180,6 +186,7 @@ int64_t Number::getInt64() const {
 
 IMPL_SPECIALIZE_RAII(BigInt);
 IMPL_SPECIALIZE_COPY_AND_MOVE(BigInt);
+IMPL_SPECIALIZE_VALUE_EXISTS(BigInt);
 BigInt::BigInt(int64_t i64) : val_(JS_NewBigInt64(Locker::currentContextChecked(), i64)) {}
 BigInt::BigInt(uint64_t u64) : val_(JS_NewBigUint64(Locker::currentContextChecked(), u64)) {}
 
@@ -197,6 +204,7 @@ uint64_t BigInt::getUInt64() const {
 
 IMPL_SPECIALIZE_RAII(String);
 IMPL_SPECIALIZE_COPY_AND_MOVE(String);
+IMPL_SPECIALIZE_VALUE_EXISTS(String);
 String::String(std::string_view utf8) {
     auto cstr = JS_NewStringLen(Locker::currentContextChecked(), utf8.data(), utf8.size());
     JsException::check(cstr);
@@ -220,6 +228,7 @@ std::string String::value() const {
 
 IMPL_SPECIALIZE_RAII(Object);
 IMPL_SPECIALIZE_COPY_AND_MOVE(Object);
+IMPL_SPECIALIZE_VALUE_EXISTS(Object);
 Object::Object() {
     auto obj = JS_NewObject(Locker::currentContextChecked());
     JsException::check(obj);
@@ -316,6 +325,7 @@ bool Object::defineOwnProperty(std::string const& key, Value const& value, Prope
 
 IMPL_SPECIALIZE_RAII(Array);
 IMPL_SPECIALIZE_COPY_AND_MOVE(Array);
+IMPL_SPECIALIZE_VALUE_EXISTS(Array);
 Array::Array(size_t size) {
     auto& engine = Locker::currentEngineChecked();
     auto  array  = JS_NewArray(engine.context_);
@@ -365,6 +375,7 @@ void Array::clear() {
 
 IMPL_SPECIALIZE_RAII(Function);
 IMPL_SPECIALIZE_COPY_AND_MOVE(Function);
+IMPL_SPECIALIZE_VALUE_EXISTS(Function);
 Function::Function(FunctionCallback callback) {
     auto ptr = std::make_unique<FunctionCallback>(std::move(callback));
 
@@ -448,7 +459,7 @@ bool Function::isConstructor() const { return JS_IsConstructor(Locker::currentCo
 
 #undef IMPL_SPECIALIZE_RAII
 #undef IMPL_SPECIALIZE_COPY_AND_MOVE
-
+#undef IMPL_SPECIALIZE_VALUE_EXISTS
 
 ScopedJsValue::ScopedJsValue(Value value) {
     val_    = std::move(value);
