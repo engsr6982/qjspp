@@ -298,6 +298,10 @@ public:
 
     Value call() const;
 
+    template <typename... Args>
+        requires(IsWrappedType<Args> && ...)
+    Value call(Value const& thiz, Args&&... args) const;
+
     Value callAsConstructor(std::vector<Value> const& args = {}) const;
 
     bool isConstructor() const;

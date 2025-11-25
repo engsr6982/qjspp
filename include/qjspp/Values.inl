@@ -38,5 +38,12 @@ T Value::as() const {
     );
 }
 
+template <typename... Args>
+    requires(IsWrappedType<Args> && ...)
+Value Function::call(Value const& thiz, Args&&... args) const {
+    const Value argsArr[] = {std::forward<Args>(args)...};
+    return call(thiz, std::span<Value const>(argsArr));
+}
+
 
 } // namespace qjspp
