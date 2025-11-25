@@ -299,7 +299,7 @@ public:
     Value call() const;
 
     template <typename... Args>
-        requires(IsWrappedType<Args> && ...)
+        requires(IsWrappedType<std::remove_cvref_t<Args>> && ...)
     Value call(Value const& thiz, Args&&... args) const;
 
     Value callAsConstructor(std::vector<Value> const& args = {}) const;
