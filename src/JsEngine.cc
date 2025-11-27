@@ -34,7 +34,7 @@ void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
         auto engine = const_cast<JsEngine*>(managed_resource->engine_);
 
         PauseGc pauseGc(engine); // 暂停GC
-        Locker lock(engine);    // 同步线程析构
+        Locker  lock(engine);    // 同步线程析构
         delete managed_resource;
     }
 }
@@ -184,7 +184,7 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
 #ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
     {
         Locker scope{this};
-        auto    sym = eval("(Symbol.toStringTag)"); // 获取 Symbol.toStringTag
+        auto   sym = eval("(Symbol.toStringTag)"); // 获取 Symbol.toStringTag
         if (!JS_IsSymbol(Value::extract(sym))) {
             throw std::logic_error("Failed to get Symbol.toStringTag");
         }
@@ -236,7 +236,7 @@ void JsEngine::pumpJobs() {
             [](void* data) {
                 auto       engine = static_cast<JsEngine*>(data);
                 JSContext* ctx    = nullptr;
-                Locker    lock(engine);
+                Locker     lock(engine);
                 while (JS_ExecutePendingJob(engine->runtime_, &ctx) > 0) {}
                 engine->pumpScheduled_ = false;
             },
@@ -361,7 +361,7 @@ void JsEngine::gc() {
 }
 
 size_t JsEngine::getMemoryUsage() {
-    Locker       lock(this);
+    Locker        lock(this);
     JSMemoryUsage usage;
     JS_ComputeMemoryUsage(runtime_, &usage);
     return usage.memory_used_size;
@@ -541,7 +541,6 @@ Object JsEngine::newJsConstructor(ClassDefine const& def) const {
                 if (auto ptr = JS_GetOpaque(rawArg0, id)) {
                     assert(id != JS_INVALID_CLASS_ID);
                     assert(id == engine->kPointerClassId);
-
                     instance        = ptr; // construct from c++
                     constructFromJs = false;
                 }
