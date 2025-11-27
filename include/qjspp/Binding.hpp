@@ -175,6 +175,9 @@ public:
     /**
      * 自定义构造逻辑。返回对象指针。
      * Register a custom constructor. Should return a pointer to the instance.
+     * @note 对于构造失败，可以在函数内抛出 JsException 给脚本层，如果返回 nullptr 库会帮你抛出异常.
+     * @note For construction failure, you can throw a JsException to the script layer in the function, and if you
+     *       return nullptr, the library will help you throw an exception.
      */
     auto customConstructor(InstanceConstructor ctor)
         requires(isInstanceClass && State == ConstructorState::None)
@@ -185,8 +188,10 @@ public:
     }
 
     /**
-     * 禁用构造函数，使 JavaScript 无法构造此类。
-     * Disable constructor from being called in JavaScript.
+     * 禁用构造函数，JavaScript 将无法通过 new 构造此类。
+     * Disable the constructor, JavaScript will not be able to construct this class with new.
+     * @note 设置为不可构造后，Builder 不会生成托管工厂(ManagedResourceFactory)
+     * @note After setting it to non-constructible, the Builder will not generate a managed factory.
      */
     auto disableConstructor()
         requires(isInstanceClass && State == ConstructorState::None)
@@ -293,7 +298,7 @@ public:
             }
         }
 
-        // factory：对于不可构造类（或明确禁用构造），不生成删除器（避免 pImpl 单例问题）
+        // factory：对于不可构造类（或明确禁用构造），不生成factory（避免 pImpl 单例问题）
         ClassDefine::ManagedResourceFactory factory = nullptr;
         if constexpr (isInstanceClass) {
             if constexpr (State != ConstructorState::Disabled) {
@@ -304,12 +309,7 @@ public:
                         [](void* res) -> void { delete static_cast<Class*>(res); }
                     );
                 };
-            } else {
-                // script cannot construct instances; do not provide delete (C++ owns lifetime)
-                factory = [](void* instance) -> std::unique_ptr<JsManagedResource> {
-                    return JsManagedResource::make(instance, [](void* res) -> void* { return res; }, nullptr);
-                };
-            }
+            } // else: script cannot construct instances; do not provide factory (C++ owns lifetime)
         }
 
         // generate script helper function

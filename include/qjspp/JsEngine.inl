@@ -14,7 +14,12 @@ std::shared_ptr<T> JsEngine::getData() const {
 
 template <typename T>
 Object JsEngine::newInstanceOfRaw(ClassDefine const& def, T* instance) {
-    return newInstance(def, std::move(def.manage(instance)));
+    auto managed = JsManagedResource::make(
+        instance,
+        [](void* res) -> void* { return res; },
+        [](void* res) -> void { delete static_cast<T*>(res); }
+    );
+    return newInstance(def, std::move(managed));
 }
 
 template <typename T>

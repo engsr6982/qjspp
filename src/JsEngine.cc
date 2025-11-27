@@ -555,6 +555,10 @@ Object JsEngine::newJsConstructor(ClassDefine const& def) const {
                 }
             }
 
+            // 对于从 C++ 构造的脚本对象，instance 已是 JsManagedResource 无需进行托管
+            // 对于从 脚本 构造的对象，instance 从绑定构造函数里获得，其为原始指针，需要进行托管
+            // 对于禁止脚本构造的类，绑定构造函数应该返回 nullptr 并在上方步骤抛出异常拦截
+            // 注意：脚本禁止构造的类，默认不会生成托管工厂方法，如果调用会抛出 logic_error
             void* managed = constructFromJs ? def->manage(instance).release() : instance;
             {
                 auto typed     = static_cast<JsManagedResource*>(managed);
