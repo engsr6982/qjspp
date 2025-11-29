@@ -1,0 +1,41 @@
+#pragma once
+#include "qjspp/Forward.hpp"
+#include "qjspp/Global.hpp"
+
+namespace qjspp {
+
+class JsEngine;
+
+class Arguments final {
+    JsEngine*                 engine_;
+    JSValueConst              thiz_;
+    int                       length_;
+    JSValueConst*             args_;
+    struct JsManagedResource* managed_{nullptr};
+
+    friend class JsEngine;
+    friend class Function;
+
+    explicit Arguments(JsEngine* engine, JSValueConst thiz, int length, JSValueConst* args);
+
+public:
+    QJSPP_DISABLE_COPY_MOVE(Arguments);
+
+    [[nodiscard]] JsEngine* engine() const;
+
+    [[nodiscard]] bool hasThiz() const;
+
+    [[nodiscard]] Object thiz() const; // this
+
+    [[nodiscard]] size_t length() const;
+
+    // Obtain internal resource management wrapper.
+    // This function is only used internally.
+    // note: This resource is only valid during instance class calls (method, property).
+    [[nodiscard]] bool                      hasJsManagedResource() const;
+    [[nodiscard]] struct JsManagedResource* getJsManagedResource() const;
+
+    Value operator[](size_t index) const;
+};
+
+} // namespace qjspp

@@ -2,10 +2,12 @@
 #include "catch2/catch_test_macros.hpp"
 #include "catch2/matchers/catch_matchers.hpp"
 #include "catch2/matchers/catch_matchers_exception.hpp"
-#include "qjspp/JsEngine.hpp"
-#include "qjspp/JsException.hpp"
-#include "qjspp/Locker.hpp"
-#include "qjspp/Values.hpp"
+#include "qjspp/runtime/JsEngine.hpp"
+#include "qjspp/runtime/Locker.hpp"
+#include "qjspp/types/Function.hpp"
+#include "qjspp/types/Number.hpp"
+#include "qjspp/types/Value.hpp"
+
 #include <algorithm>
 #include <filesystem>
 

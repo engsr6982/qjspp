@@ -22,6 +22,7 @@ option("test")
     set_showmenu(true)
 option_end()
 
+set_toolchains("clang-cl")
 
 target("qjspp")
     add_files("src/**.cc")

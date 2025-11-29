@@ -1,6 +1,5 @@
 #pragma once
-#include "qjspp/JsEngine.hpp"
-#include "qjspp/Types.hpp"
+#include "qjspp/runtime/JsEngine.hpp"
 
 
 struct TestEngineFixture {

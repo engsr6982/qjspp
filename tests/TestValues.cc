@@ -2,11 +2,12 @@
 #include "catch2/catch_test_macros.hpp"
 #include "catch2/matchers/catch_matchers.hpp"
 #include "catch2/matchers/catch_matchers_exception.hpp"
-#include "qjspp/JsEngine.hpp"
-#include "qjspp/JsException.hpp"
-#include "qjspp/Locker.hpp"
-#include "qjspp/Types.hpp"
-#include "qjspp/Values.hpp"
+#include "qjspp/Forward.hpp"
+#include "qjspp/runtime/JsEngine.hpp"
+#include "qjspp/runtime/Locker.hpp"
+#include "qjspp/types/Function.hpp"
+#include "qjspp/types/Value.hpp"
+
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
@@ -155,12 +156,12 @@ TEST_CASE_METHOD(TestEngineFixture, "Values") {
     }
 
     SECTION("Test Function") {
-        auto sub    = qjspp::Function{&::sub};
-        auto add    = qjspp::Function{&::add};
-        auto append = qjspp::Function{
+        auto sub    = qjspp::Function::newFunction(::sub);
+        auto add    = qjspp::Function::newFunction(::add);
+        auto append = qjspp::Function::newFunction(
             static_cast<std::string (*)(std::string const&, std::string const&)>(&::append),
             static_cast<std::string (*)(std::string const&, int)>(&::append)
-        };
+        );
         engine_->globalThis().set("sub", sub);
         engine_->globalThis().set("add", add);
         engine_->globalThis().set("append", append);

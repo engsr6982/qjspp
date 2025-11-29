@@ -2,14 +2,12 @@
 #include "catch2/catch_test_macros.hpp"
 #include "catch2/matchers/catch_matchers.hpp"
 #include "catch2/matchers/catch_matchers_exception.hpp"
-#include "qjspp/Binding.hpp"
-#include "qjspp/Definitions.hpp"
-#include "qjspp/JsEngine.hpp"
-#include "qjspp/JsException.hpp"
-#include "qjspp/Locker.hpp"
-#include "qjspp/Module.hpp"
-#include "qjspp/Types.hpp"
-#include "qjspp/Values.hpp"
+#include "qjspp/Forward.hpp"
+#include "qjspp/bind/builder/ClassDefineBuilder.hpp"
+#include "qjspp/bind/builder/EnumDefineBuilder.hpp"
+#include "qjspp/bind/builder/ModuleDefineBuilder.hpp"
+#include "qjspp/runtime/JsEngine.hpp"
+#include "qjspp/runtime/Locker.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
@@ -30,8 +28,8 @@ std::string Util::cus = "cus";
 int         Util::foo = 42;
 
 
-qjspp::ClassDefine const UtilDefine =
-    qjspp::defineClass<void>("Util")
+qjspp::bind::meta::ClassDefine const UtilDefine =
+    qjspp::bind::defineClass<void>("Util")
         .function("add", &Util::add)
         .function(
             "append",
@@ -108,22 +106,22 @@ public:
 std::string Derived::foo = "Derived::foo";
 
 
-qjspp::ClassDefine const BaseDefine = qjspp::defineClass<Base>("Base")
-                                          .disableConstructor()
-                                          .instanceProperty("baseMember", &Base::baseMember)
-                                          .instanceMethod("type", &Base::type)
-                                          .instanceMethod("baseBar", &Base::baseBar)
-                                          .property("name", &Base::name)
-                                          .function("baseTrue", &Base::baseTrue)
-                                          .build();
+qjspp::bind::meta::ClassDefine const BaseDefine = qjspp::bind::defineClass<Base>("Base")
+                                                      .disableConstructor()
+                                                      .instanceProperty("baseMember", &Base::baseMember)
+                                                      .instanceMethod("type", &Base::type)
+                                                      .instanceMethod("baseBar", &Base::baseBar)
+                                                      .property("name", &Base::name)
+                                                      .function("baseTrue", &Base::baseTrue)
+                                                      .build();
 
-qjspp::ClassDefine const DerivedDefine = qjspp::defineClass<Derived>("Derived")
-                                             .extends(BaseDefine)
-                                             .constructor<int>()
-                                             .instanceProperty("derivedMember", &Derived::derivedMember)
-                                             .instanceMethod("type", &Derived::type)
-                                             .property("foo", &Derived::foo)
-                                             .build();
+qjspp::bind::meta::ClassDefine const DerivedDefine = qjspp::bind::defineClass<Derived>("Derived")
+                                                         .extends(BaseDefine)
+                                                         .constructor<int>()
+                                                         .instanceProperty("derivedMember", &Derived::derivedMember)
+                                                         .instanceMethod("type", &Derived::type)
+                                                         .property("foo", &Derived::foo)
+                                                         .build();
 
 
 TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
@@ -204,7 +202,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
     }
 }
 
-qjspp::ModuleDefine NativeModuleDef =
+qjspp::bind::meta::ModuleDefine NativeModuleDef =
     qjspp::defineModule("native").addClass(UtilDefine).addClass(BaseDefine).addClass(DerivedDefine).build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Module Binding") {
@@ -252,11 +250,11 @@ qjspp::Value JsAssert(qjspp::Arguments const& args) {
     return {};
 }
 
-qjspp::ClassDefine TestFormDefine = qjspp::defineClass<TestForm>("TestForm")
-                                        .constructor<>()
-                                        .instanceMethod("setCallback", &TestForm::setCallback)
-                                        .instanceMethod("call", &TestForm::call)
-                                        .build();
+qjspp::bind::meta::ClassDefine TestFormDefine = qjspp::bind::defineClass<TestForm>("TestForm")
+                                                    .constructor<>()
+                                                    .instanceMethod("setCallback", &TestForm::setCallback)
+                                                    .instanceMethod("call", &TestForm::call)
+                                                    .build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Test Callback") {
     qjspp::Locker scope{engine_};
@@ -282,10 +280,10 @@ public:
     virtual std::string foo() = 0;
 };
 
-qjspp::ClassDefine AbstractFooDef = qjspp::defineClass<AbstractFoo>("AbstractFoo")
-                                        .disableConstructor()
-                                        .instanceMethod("foo", &AbstractFoo::foo)
-                                        .build();
+qjspp::bind::meta::ClassDefine AbstractFooDef = qjspp::bind::defineClass<AbstractFoo>("AbstractFoo")
+                                                    .disableConstructor()
+                                                    .instanceMethod("foo", &AbstractFoo::foo)
+                                                    .build();
 
 class FooImpl : public AbstractFoo {
 public:
@@ -326,11 +324,11 @@ public:
     std::string build() const { return str_.str(); }
 };
 
-qjspp::ClassDefine BuilderDefine = qjspp::defineClass<Builder>("Builder")
-                                       .constructor<>()
-                                       .instanceMethod("append", &Builder::append)
-                                       .instanceMethod("build", &Builder::build)
-                                       .build();
+qjspp::bind::meta::ClassDefine BuilderDefine = qjspp::bind::defineClass<Builder>("Builder")
+                                                   .constructor<>()
+                                                   .instanceMethod("append", &Builder::append)
+                                                   .instanceMethod("build", &Builder::build)
+                                                   .build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Builder Pattern") {
     qjspp::Locker scope{engine_};
@@ -354,11 +352,11 @@ enum class Color {
     Blue,
 };
 
-qjspp::EnumDefine ColorDef_ = qjspp::defineEnum<Color>("Color")
-                                  .value("Red", Color::Red)
-                                  .value("Green", Color::Green)
-                                  .value("Blue", Color::Blue)
-                                  .build();
+qjspp::bind::meta::EnumDefine ColorDef_ = qjspp::bind::defineEnum<Color>("Color")
+                                              .value("Red", Color::Red)
+                                              .value("Green", Color::Green)
+                                              .value("Blue", Color::Blue)
+                                              .build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Enum Bind") {
     qjspp::Locker scope{engine_};
@@ -371,7 +369,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Enum Bind") {
     REQUIRE(engine_->eval("Color.Blue").asNumber().getInt32() == 2);
 }
 
-qjspp::ModuleDefine ColorModuleDef_ = qjspp::defineModule("Color").addEnum(ColorDef_).build();
+qjspp::bind::meta::ModuleDefine ColorModuleDef_ = qjspp::defineModule("Color").addEnum(ColorDef_).build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Enum Module Bind") {
     qjspp::Locker scope{engine_};
@@ -414,7 +412,7 @@ public:
     PointMeta(int x, int y) : x_(x), y_(y) {}
     PointMeta(int x, int y, bool external) : x_(x), y_(y), external_(external) {}
 };
-auto ScriptPointMeta = qjspp::defineClass<PointMeta>("PointMeta")
+auto ScriptPointMeta = qjspp::bind::defineClass<PointMeta>("PointMeta")
                            .constructor<>()
                            .constructor<int, int>()
                            .constructor<int, int, bool>()
@@ -473,7 +471,7 @@ public:
     AABB(const Vec3& min, const Vec3& max) : min(min), max(max) {}
 };
 
-auto ScriptVec3 = qjspp::defineClass<Vec3>("Vec3")
+auto ScriptVec3 = qjspp::bind::defineClass<Vec3>("Vec3")
                       .constructor<>()
                       .constructor<float, float, float>()
                       .instanceProperty("x", &Vec3::x)
@@ -483,7 +481,7 @@ auto ScriptVec3 = qjspp::defineClass<Vec3>("Vec3")
                       .build();
 
 
-namespace qjspp {
+namespace qjspp::bind {
 template <>
 struct TypeConverter<Vec3> {
     static Value toJs(Vec3 const& ref) {
@@ -493,10 +491,10 @@ struct TypeConverter<Vec3> {
         return Locker::currentEngineChecked().getNativeInstanceOf<Vec3>(val.asObject(), ScriptVec3);
     }
 };
-} // namespace qjspp
+} // namespace qjspp::bind
 
 
-auto ScriptAABB = qjspp::defineClass<AABB>("AABB")
+auto ScriptAABB = qjspp::bind::defineClass<AABB>("AABB")
                       .constructor<>()
                       .constructor<const Vec3&, const Vec3&>()
                       .instancePropertyRef("min", &AABB::min, ScriptVec3)
