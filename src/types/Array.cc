@@ -9,15 +9,20 @@
 namespace qjspp {
 
 IMPL_QJSPP_DEFINE_VALUE_COMMON(Array);
-Array::Array(size_t size) {
+
+Array Array::newArray(size_t size) {
     auto& engine = Locker::currentEngineChecked();
     auto  array  = JS_NewArray(engine.context_);
     JsException::check(array);
     if (size != 0) {
         auto length = JS_NewInt32(engine.context_, static_cast<int32_t>(size));
-        JsException::check(JS_SetProperty(engine.context_, array, engine.lengthAtom_, length));
+        auto code   = JS_SetProperty(engine.context_, array, engine.lengthAtom_, length);
+        if (code < 0) [[unlikely]] {
+            JS_FreeValue(engine.context_, array);
+            JsException::check(code);
+        }
     }
-    val_ = array;
+    return Value::move<Array>(array);
 }
 
 size_t Array::length() const {

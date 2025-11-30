@@ -8,7 +8,8 @@ namespace qjspp {
 class Object final {
 public:
     QJSPP_DEFINE_VALUE_COMMON(Object);
-    Object();
+
+    [[nodiscard]] static Object newObject();
 
     [[nodiscard]] bool has(String const& key) const;
     [[nodiscard]] bool has(std::string const& key) const;

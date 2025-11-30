@@ -8,10 +8,11 @@
 namespace qjspp {
 
 IMPL_QJSPP_DEFINE_VALUE_COMMON(Object);
-Object::Object() {
+
+Object Object::newObject() {
     auto obj = JS_NewObject(Locker::currentContextChecked());
     JsException::check(obj);
-    val_ = obj;
+    return Value::move<Object>(obj);
 }
 
 bool Object::has(String const& key) const { return has(key.value()); }

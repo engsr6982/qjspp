@@ -6,7 +6,8 @@ namespace qjspp {
 class Array final {
 public:
     QJSPP_DEFINE_VALUE_COMMON(Array);
-    explicit Array(size_t size = 0);
+
+    [[nodiscard]] static Array newArray(size_t size = 0);
 
     [[nodiscard]] size_t length() const;
 

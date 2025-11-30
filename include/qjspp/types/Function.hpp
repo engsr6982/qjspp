@@ -15,15 +15,15 @@ public:
     QJSPP_DEFINE_VALUE_COMMON(Function);
     explicit Function(FunctionCallback callback);
 
-    static Function newFunction(FunctionCallback&& callback);
+    [[nodiscard]] static Function newFunction(FunctionCallback&& callback);
 
     template <typename T>
         requires(!concepts::JsFunctionCallback<T>)
-    static Function newFunction(T&& func);
+    [[nodiscard]] static Function newFunction(T&& func);
 
     template <typename... Overloads>
         requires(sizeof...(Overloads) > 1)
-    static Function newFunction(Overloads&&... overloads);
+    [[nodiscard]] static Function newFunction(Overloads&&... overloads);
 
     Value call(Value const& thiz, std::vector<Value> const& args) const;
 

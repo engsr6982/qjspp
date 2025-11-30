@@ -400,7 +400,7 @@ Object JsEngine::newJsClass(bind::meta::ClassDefine const& def) {
     bool const instance = def.hasConstructor();
     if (!instance) {
         // 非实例类，挂载为 Object 的静态属性
-        auto object = Object{};
+        auto object = Object::newObject();
         implStaticRegister(object, def.staticMemberDef_);
 #ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
         updateToStringTag(object, def.name_);
@@ -595,7 +595,7 @@ bool ClassDefineCheckHelper(bind::meta::ClassDefine const* def, bind::meta::Clas
     return false;
 }
 Object JsEngine::newJsPrototype(bind::meta::ClassDefine const& def) const {
-    auto prototype = Object{};
+    auto prototype = Object::newObject();
     auto definePtr = const_cast<bind::meta::ClassDefine*>(&def);
 
 #ifndef QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO
@@ -798,7 +798,7 @@ void JsEngine::implStaticRegister(Object& ctor, bind::meta::StaticMemberDefine c
     }
 }
 Object JsEngine::implRegisterEnum(bind::meta::EnumDefine const& def) {
-    Object obj{};
+    auto obj = Object::newObject();
     obj.defineOwnProperty(
         kEnumNameHelperProperty,
         String{def.name_},

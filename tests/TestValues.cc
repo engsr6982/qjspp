@@ -49,10 +49,10 @@ TEST_CASE_METHOD(TestEngineFixture, "Values") {
         REQUIRE(string.asValue().isString() == true);
         REQUIRE(string.value() == "Hello");
 
-        auto object = qjspp::Object{};
+        auto object = qjspp::Object::newObject();
         REQUIRE(object.asValue().isObject() == true);
 
-        auto array = qjspp::Array{};
+        auto array = qjspp::Array::newArray();
         REQUIRE(array.asValue().isArray() == true);
 
         auto function = qjspp::Function{[](qjspp::Arguments const&) { return qjspp::Boolean{true}; }};
@@ -79,7 +79,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Values") {
     }
 
     SECTION("Test Object") {
-        auto object = qjspp::Object{};
+        auto object = qjspp::Object::newObject();
         REQUIRE(object.has("foo") == false);
 
         object.set("foo", qjspp::Number{42.0});
@@ -102,7 +102,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Values") {
         REQUIRE(object.getOwnPropertyNames().empty() == true);
 
         REQUIRE_THROWS_MATCHES(
-            object.instanceOf(qjspp::Object{}), // fake object
+            object.instanceOf(qjspp::Object::newObject()), // fake object
             qjspp::JsException,
             Catch::Matchers::ExceptionMessageMatcher("invalid 'instanceof' right operand")
         );
@@ -144,7 +144,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Values") {
     }
 
     SECTION("Test Array") {
-        auto array = qjspp::Array{};
+        auto array = qjspp::Array::newArray();
         REQUIRE(array.length() == 0);
 
         array.push(qjspp::Number{888});

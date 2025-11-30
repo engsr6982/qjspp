@@ -12,6 +12,8 @@ public:
     [[nodiscard]] bool value() const;
 
     operator bool() const;
+
+    [[nodiscard]] static Boolean newBoolean(bool v);
 };
 
 } // namespace qjspp

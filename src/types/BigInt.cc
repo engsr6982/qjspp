@@ -22,5 +22,8 @@ uint64_t BigInt::getUInt64() const {
     return ret;
 }
 
+BigInt BigInt::newBigInt(int64_t i64) { return BigInt(i64); }
+BigInt BigInt::newBigInt(uint64_t u64) { return BigInt(u64); }
+
 
 } // namespace qjspp

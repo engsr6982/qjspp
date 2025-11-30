@@ -12,4 +12,6 @@ Boolean::Boolean(bool value) : val_(JS_NewBool(Locker::currentContextChecked(), 
 bool Boolean::value() const { return JS_ToBool(Locker::currentContextChecked(), val_); }
 Boolean::operator bool() const { return value(); }
 
+Boolean Boolean::newBoolean(bool v) { return Boolean{v}; }
+
 } // namespace qjspp

@@ -11,6 +11,9 @@ public:
 
     [[nodiscard]] int64_t  getInt64() const;
     [[nodiscard]] uint64_t getUInt64() const;
+
+    [[nodiscard]] static BigInt newBigInt(int64_t i64);
+    [[nodiscard]] static BigInt newBigInt(uint64_t u64);
 };
 
 } // namespace qjspp
