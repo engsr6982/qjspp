@@ -199,6 +199,8 @@ private:
     static bool kUpdateModuleMeta(JSContext* ctx, JSModuleDef* module, std::string_view url, bool isMain);
 
     struct ModuleLoader {
+        static std::optional<std::filesystem::path> resolveWithFallback(const std::filesystem::path& p);
+
         static char*        normalize(JSContext* ctx, const char* base, const char* name, void* opaque);
         static JSModuleDef* loader(JSContext* ctx, const char* canonical, void* opaque);
     };

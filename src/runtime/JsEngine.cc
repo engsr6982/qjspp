@@ -65,6 +65,19 @@ bool JsEngine::kUpdateModuleMeta(JSContext* ctx, JSModuleDef* module, std::strin
     return kUpdateModuleUrl(ctx, module, url) && kUpdateModuleMainFlag(ctx, module, isMain);
 }
 
+std::optional<std::filesystem::path> JsEngine::ModuleLoader::resolveWithFallback(const std::filesystem::path& p) {
+    if (is_regular_file(p)) return p;
+
+    auto js  = p;
+    js      += ".js";
+    if (is_regular_file(js)) return js;
+
+    auto mjs  = p;
+    mjs      += ".mjs";
+    if (is_regular_file(mjs)) return mjs;
+
+    return std::nullopt;
+}
 
 /* ModuleLoader impl */
 constexpr std::string_view FilePrefix = "file://";
@@ -104,10 +117,21 @@ char* JsEngine::ModuleLoader::normalize(JSContext* ctx, const char* base, const 
     std::filesystem::path targetPath = basePath / name;
 
     // 规范化（处理 .. 和 .）
-    targetPath = std::filesystem::weakly_canonical(targetPath);
+    std::error_code ec;
+    targetPath = std::filesystem::weakly_canonical(targetPath, ec);
+    if (ec) {
+        JS_ThrowReferenceError(ctx, "Invalid path: %s", name);
+        return nullptr;
+    }
+
+    auto resolved = resolveWithFallback(targetPath);
+    if (!resolved) {
+        JS_ThrowReferenceError(ctx, "Cannot resolve module: %s", name);
+        return nullptr;
+    }
 
     // 重新加上 file:// 前缀
-    std::string fullUrl = std::string(FilePrefix) + targetPath.generic_string();
+    std::string fullUrl = std::string(FilePrefix) + (*resolved).generic_string();
 
     return js_strdup(ctx, fullUrl.c_str());
 }
