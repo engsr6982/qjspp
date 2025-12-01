@@ -34,7 +34,7 @@ void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
 
     auto opaque = JS_GetOpaque(val, classID);
     if (opaque) {
-        auto managed_resource = static_cast<JsManagedResource*>(opaque);
+        auto managed_resource = static_cast<bind::JsManagedResource*>(opaque);
         assert(managed_resource->define_->instanceMemberDef_.classId_ == classID); // 校验类ID是否匹配
         auto engine = const_cast<JsEngine*>(managed_resource->engine_);
 
@@ -590,7 +590,7 @@ Object JsEngine::newJsConstructor(bind::meta::ClassDefine const& def) const {
             // 注意：脚本禁止构造的类，默认不会生成托管工厂方法，如果调用会抛出 logic_error
             void* managed = constructFromJs ? def->manage(instance).release() : instance;
             {
-                auto typed     = static_cast<JsManagedResource*>(managed);
+                auto typed     = static_cast<bind::JsManagedResource*>(managed);
                 typed->define_ = def;
                 typed->engine_ = engine;
 
@@ -632,7 +632,7 @@ Object JsEngine::newJsPrototype(bind::meta::ClassDefine const& def) const {
                 auto const classID = JS_GetClassID(args.thiz_);
                 assert(classID != JS_INVALID_CLASS_ID);
 
-                auto managed  = static_cast<JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
+                auto managed  = static_cast<bind::JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
                 auto instance = (*managed)();
                 if (instance == nullptr) [[unlikely]] {
                     throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
@@ -674,7 +674,7 @@ Object JsEngine::newJsPrototype(bind::meta::ClassDefine const& def) const {
                 auto const classID = JS_GetClassID(args.thiz_);
                 assert(classID != JS_INVALID_CLASS_ID);
 
-                auto managed  = static_cast<JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
+                auto managed  = static_cast<bind::JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
                 auto instance = (*managed)();
                 if (instance == nullptr) [[unlikely]] {
                     throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
@@ -707,7 +707,7 @@ Object JsEngine::newJsPrototype(bind::meta::ClassDefine const& def) const {
                 auto const classID = JS_GetClassID(args.thiz_);
                 assert(classID != JS_INVALID_CLASS_ID);
 
-                auto managed  = static_cast<JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
+                auto managed  = static_cast<bind::JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
                 auto instance = (*managed)();
                 if (instance == nullptr) [[unlikely]] {
                     throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
@@ -735,7 +735,7 @@ Object JsEngine::newJsPrototype(bind::meta::ClassDefine const& def) const {
                     auto const classID = JS_GetClassID(args.thiz_);
                     assert(classID != JS_INVALID_CLASS_ID);
 
-                    auto managed  = static_cast<JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
+                    auto managed  = static_cast<bind::JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
                     auto instance = (*managed)();
                     if (instance == nullptr) [[unlikely]] {
                         throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
@@ -854,7 +854,8 @@ void JsEngine::updateToStringTag(Object& obj, std::string_view tag) const {
 #endif
 
 
-Object JsEngine::newInstance(bind::meta::ClassDefine const& def, std::unique_ptr<JsManagedResource>&& managedResource) {
+Object
+JsEngine::newInstance(bind::meta::ClassDefine const& def, std::unique_ptr<bind::JsManagedResource>&& managedResource) {
     auto iter = nativeInstanceClasses_.find(&def);
     if (iter == nativeInstanceClasses_.end()) {
         throw std::logic_error{
@@ -890,7 +891,7 @@ void* JsEngine::getNativeInstanceOf(Object const& thiz, bind::meta::ClassDefine 
         return nullptr;
     }
     auto managed_resource =
-        static_cast<JsManagedResource*>(JS_GetOpaque(Value::extract(thiz), def.instanceMemberDef_.classId_));
+        static_cast<bind::JsManagedResource*>(JS_GetOpaque(Value::extract(thiz), def.instanceMemberDef_.classId_));
     return (*managed_resource)();
 }
 

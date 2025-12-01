@@ -8,7 +8,8 @@ namespace qjspp {
 
 class JsEngine;
 
-namespace bind::meta {
+namespace bind {
+namespace meta {
 class ClassDefine;
 }
 
@@ -22,11 +23,11 @@ private:
     Finalizer const finalizer_{nullptr};
 
     // internal use only
-    bind::meta::ClassDefine const* define_{nullptr};
-    JsEngine const*                engine_{nullptr};
-    bool const                     constructFromJs_{false};
+    meta::ClassDefine const* define_{nullptr};
+    JsEngine const*          engine_{nullptr};
+    bool const               constructFromJs_{false};
 
-    friend class JsEngine;
+    friend JsEngine;
 
 public:
     [[nodiscard]] inline void* get() const { return resource_ ? accessor_(resource_) : nullptr; }
@@ -55,5 +56,6 @@ public:
     }
 };
 
+} // namespace bind
 
 } // namespace qjspp

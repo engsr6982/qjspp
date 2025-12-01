@@ -13,14 +13,15 @@
 
 namespace qjspp {
 class JsException;
-namespace bind::meta {
+namespace bind {
+struct JsManagedResource;
+namespace meta {
 struct StaticMemberDefine;
 class EnumDefine;
 struct ModuleDefine;
 class ClassDefine;
-} // namespace bind::meta
-
-struct JsManagedResource;
+} // namespace meta
+} // namespace bind
 
 class JsEngine final {
 public:
@@ -85,7 +86,7 @@ public:
     /**
      * 创建一个新的 JavaScript 类实例
      */
-    Object newInstance(bind::meta::ClassDefine const& def, std::unique_ptr<JsManagedResource>&& managedResource);
+    Object newInstance(bind::meta::ClassDefine const& def, std::unique_ptr<bind::JsManagedResource>&& managedResource);
 
     /**
      * 创建一个新的 JavaScript 类实例

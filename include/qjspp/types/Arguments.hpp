@@ -5,13 +5,16 @@
 namespace qjspp {
 
 class JsEngine;
+namespace bind {
+struct JsManagedResource;
+}
 
 class Arguments final {
-    JsEngine*                 engine_;
-    JSValueConst              thiz_;
-    int                       length_;
-    JSValueConst*             args_;
-    struct JsManagedResource* managed_{nullptr};
+    JsEngine*                engine_;
+    JSValueConst             thiz_;
+    int                      length_;
+    JSValueConst*            args_;
+    bind::JsManagedResource* managed_{nullptr};
 
     friend class JsEngine;
     friend class Function;
@@ -32,8 +35,8 @@ public:
     // Obtain internal resource management wrapper.
     // This function is only used internally.
     // note: This resource is only valid during instance class calls (method, property).
-    [[nodiscard]] bool                      hasJsManagedResource() const;
-    [[nodiscard]] struct JsManagedResource* getJsManagedResource() const;
+    [[nodiscard]] bool                     hasJsManagedResource() const;
+    [[nodiscard]] bind::JsManagedResource* getJsManagedResource() const;
 
     Value operator[](size_t index) const;
 };

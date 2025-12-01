@@ -203,7 +203,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
 }
 
 qjspp::bind::meta::ModuleDefine NativeModuleDef =
-    qjspp::defineModule("native").addClass(UtilDefine).addClass(BaseDefine).addClass(DerivedDefine).build();
+    qjspp::bind::defineModule("native").addClass(UtilDefine).addClass(BaseDefine).addClass(DerivedDefine).build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Module Binding") {
     qjspp::Locker scope{engine_};
@@ -369,7 +369,7 @@ TEST_CASE_METHOD(TestEngineFixture, "Enum Bind") {
     REQUIRE(engine_->eval("Color.Blue").asNumber().getInt32() == 2);
 }
 
-qjspp::bind::meta::ModuleDefine ColorModuleDef_ = qjspp::defineModule("Color").addEnum(ColorDef_).build();
+qjspp::bind::meta::ModuleDefine ColorModuleDef_ = qjspp::bind::defineModule("Color").addEnum(ColorDef_).build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Enum Module Bind") {
     qjspp::Locker scope{engine_};

@@ -1,5 +1,6 @@
 #include "qjspp/types/Arguments.hpp"
 
+#include "qjspp/bind/JsManagedResource.hpp"
 #include "qjspp/types/Object.hpp"
 #include "qjspp/types/Value.hpp"
 
@@ -19,8 +20,8 @@ Object Arguments::thiz() const { return Value::wrap<Object>(thiz_); }
 
 size_t Arguments::length() const { return length_; }
 
-bool               Arguments::hasJsManagedResource() const { return managed_ != nullptr; }
-JsManagedResource* Arguments::getJsManagedResource() const { return managed_; }
+bool                     Arguments::hasJsManagedResource() const { return managed_ != nullptr; }
+bind::JsManagedResource* Arguments::getJsManagedResource() const { return managed_; }
 
 Value Arguments::operator[](size_t index) const {
     if (index >= length_) {

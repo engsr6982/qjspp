@@ -14,7 +14,7 @@ std::shared_ptr<T> JsEngine::getData() const {
 
 template <typename T>
 Object JsEngine::newInstanceOfRaw(bind::meta::ClassDefine const& def, T* instance) {
-    auto managed = JsManagedResource::make(
+    auto managed = bind::JsManagedResource::make(
         instance,
         [](void* res) -> void* { return res; },
         [](void* res) -> void { delete static_cast<T*>(res); }
@@ -24,7 +24,7 @@ Object JsEngine::newInstanceOfRaw(bind::meta::ClassDefine const& def, T* instanc
 
 template <typename T>
 Object JsEngine::newInstanceOfView(bind::meta::ClassDefine const& def, T* instance) {
-    auto wrap = JsManagedResource::make(instance, [](void* res) -> void* { return res; }, nullptr);
+    auto wrap = bind::JsManagedResource::make(instance, [](void* res) -> void* { return res; }, nullptr);
     return newInstance(def, std::move(wrap));
 }
 
@@ -38,7 +38,7 @@ Object JsEngine::newInstanceOfView(bind::meta::ClassDefine const& def, T* instan
     };
     auto control = new Control{ownerJs, instance};
 
-    auto wrap = JsManagedResource::make(
+    auto wrap = bind::JsManagedResource::make(
         control,
         [](void* res) -> void* { return static_cast<Control*>(res)->nativeInst; },
         [](void* res) -> void { delete static_cast<Control*>(res); }
@@ -58,7 +58,7 @@ Object JsEngine::newInstanceOfShared(bind::meta::ClassDefine const& def, std::sh
         explicit Control(std::shared_ptr<T>&& instance) : instance(std::move(instance)) {}
     };
     auto control = new Control{std::move(instance)};
-    auto wrap    = JsManagedResource::make(
+    auto wrap    = bind::JsManagedResource::make(
         control,
         [](void* res) -> void* { return static_cast<Control*>(res)->instance.get(); },
         [](void* res) -> void { delete static_cast<Control*>(res); }
@@ -73,7 +73,7 @@ Object JsEngine::newInstanceOfWeak(bind::meta::ClassDefine const& def, std::weak
         explicit Control(std::weak_ptr<T>&& instance) : instance(std::move(instance)) {}
     };
     auto control = new Control{std::move(instance)};
-    auto wrap    = JsManagedResource::make(
+    auto wrap    = bind::JsManagedResource::make(
         control,
         [](void* res) -> void* {
             // TODO: 临时 shared_ptr 裸指针不安全，需要持久化或在 wrapper 后清理

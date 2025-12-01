@@ -7,14 +7,14 @@
 #include <vector>
 
 
-namespace qjspp {
+namespace qjspp::bind {
 
 
 struct ModuleDefineBuilder {
 private:
-    std::string                                 name_;
-    std::vector<bind::meta::ClassDefine const*> refClass_;
-    std::vector<bind::meta::EnumDefine const*>  refEnum_;
+    std::string                           name_;
+    std::vector<meta::ClassDefine const*> refClass_;
+    std::vector<meta::EnumDefine const*>  refEnum_;
 
 public:
     explicit ModuleDefineBuilder(std::string name) : name_{std::move(name)} {}
@@ -29,11 +29,11 @@ public:
         return *this;
     }
 
-    [[nodiscard]] bind::meta::ModuleDefine build() {
-        return bind::meta::ModuleDefine{std::move(name_), std::move(refClass_), std::move(refEnum_)};
+    [[nodiscard]] meta::ModuleDefine build() {
+        return meta::ModuleDefine{std::move(name_), std::move(refClass_), std::move(refEnum_)};
     }
 };
 
 inline ModuleDefineBuilder defineModule(std::string&& name) { return ModuleDefineBuilder{std::move(name)}; }
 
-} // namespace qjspp
+} // namespace qjspp::bind
