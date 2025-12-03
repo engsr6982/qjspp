@@ -11,7 +11,9 @@ template <typename T>
 concept NumberLike = std::is_arithmetic_v<T>;
 
 template <typename T>
-concept StringLike = std::convertible_to<T, std::string_view> || std::same_as<std::remove_cvref_t<T>, std::string>;
+concept StringLike =
+    std::is_same_v<std::remove_cvref_t<T>, std::string> || std::is_same_v<std::remove_cvref_t<T>, std::string_view>
+    || std::is_same_v<std::remove_cvref_t<T>, const char*> || std::is_same_v<std::remove_cvref_t<T>, char*>;
 
 template <typename T>
 concept HasDefaultConstructor = requires { T{}; };

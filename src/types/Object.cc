@@ -5,6 +5,8 @@
 #include "qjspp/types/String.hpp"
 #include "qjspp/types/Value.hpp"
 
+#include <string_view>
+
 namespace qjspp {
 
 IMPL_QJSPP_DEFINE_VALUE_COMMON(Object);
@@ -16,9 +18,9 @@ Object Object::newObject() {
 }
 
 bool Object::has(String const& key) const { return has(key.value()); }
-bool Object::has(std::string const& key) const {
+bool Object::has(std::string_view key) const {
     auto ctx  = Locker::currentContextChecked();
-    auto atom = JS_NewAtomLen(ctx, key.c_str(), key.size());
+    auto atom = JS_NewAtomLen(ctx, key.data(), key.size());
 
     auto ret = JS_HasProperty(ctx, val_, atom);
     JS_FreeAtom(ctx, atom);
@@ -28,23 +30,23 @@ bool Object::has(std::string const& key) const {
 }
 
 Value Object::get(String const& key) const { return get(key.value()); }
-Value Object::get(std::string const& key) const {
-    auto ret = JS_GetPropertyStr(Locker::currentContextChecked(), val_, key.c_str());
+Value Object::get(std::string_view key) const {
+    auto ret = JS_GetPropertyStr(Locker::currentContextChecked(), val_, key.data());
     JsException::check(ret);
     return Value::move<Value>(ret);
 }
 
 void Object::set(String const& key, Value const& value) { set(key.value(), value); }
-void Object::set(std::string const& key, Value const& value) {
+void Object::set(std::string_view key, Value const& value) {
     auto ctx = Locker::currentContextChecked();
-    auto ret = JS_SetPropertyStr(ctx, val_, key.c_str(), JS_DupValue(ctx, Value::extract(value)));
+    auto ret = JS_SetPropertyStr(ctx, val_, key.data(), JS_DupValue(ctx, Value::extract(value)));
     JsException::check(ret);
 }
 
 void Object::remove(String const& key) { remove(key.value()); }
-void Object::remove(std::string const& key) {
+void Object::remove(std::string_view key) {
     auto ctx  = Locker::currentContextChecked();
-    auto atom = JS_NewAtomLen(ctx, key.c_str(), key.size());
+    auto atom = JS_NewAtomLen(ctx, key.data(), key.size());
     auto ret  = JS_DeleteProperty(ctx, val_, atom, 0);
     JS_FreeAtom(ctx, atom);
     JsException::check(ret);
@@ -90,10 +92,10 @@ bool Object::instanceOf(Value const& value) const {
 bool Object::defineOwnProperty(String const& key, Value const& value, PropertyAttributes attr) {
     return defineOwnProperty(key.value(), value, attr);
 }
-bool Object::defineOwnProperty(std::string const& key, Value const& value, PropertyAttributes attr) {
+bool Object::defineOwnProperty(std::string_view key, Value const& value, PropertyAttributes attr) {
     auto ctx = Locker::currentContextChecked();
 
-    JSAtom atom  = JS_NewAtom(ctx, key.c_str());
+    JSAtom atom  = JS_NewAtom(ctx, key.data());
     int    flags = toQuickJSFlags(attr);
 
     int ret = JS_DefinePropertyValue(ctx, val_, atom, JS_DupValue(ctx, Value::extract(value)), flags);
