@@ -152,7 +152,7 @@ struct TypeConverter<std::optional<T>> {
 template <typename T>
 struct TypeConverter<std::vector<T>> {
     static Value toJs(std::vector<T> const& value) {
-        auto array = Array{value.size()};
+        auto array = Array::newArray(value.size());
         for (std::size_t i = 0; i < value.size(); ++i) {
             array.set(i, ConvertToJs(value[i]));
         }
@@ -178,7 +178,7 @@ struct TypeConverter<std::unordered_map<K, V>> {
     static_assert(HasTypeConverter<V>, "Cannot convert std::unordered_map to Object; type V has no TypeConverter");
 
     static Value toJs(std::unordered_map<K, V> const& value) {
-        auto object = Object{};
+        auto object = Object::newObject();
         for (auto const& [key, val] : value) {
             object.set(key, ConvertToJs(val));
         }
@@ -252,7 +252,7 @@ struct TypeConverter<std::pair<Ty1, Ty2>> {
     static_assert(internal::IsTypeConverterAvailable_v<Ty2>);
 
     static Value toJs(std::pair<Ty1, Ty2> const& pair) {
-        Array array{2};
+        auto array = Array::newArray(2);
         array.set(0, ConvertToJs(pair.first));
         array.set(1, ConvertToJs(pair.second));
         return array;
