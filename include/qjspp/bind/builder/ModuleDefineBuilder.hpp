@@ -15,6 +15,7 @@ private:
     std::string                           name_;
     std::vector<meta::ClassDefine const*> refClass_;
     std::vector<meta::EnumDefine const*>  refEnum_;
+    // TODO: add functions and variables
 
 public:
     explicit ModuleDefineBuilder(std::string name) : name_{std::move(name)} {}
@@ -30,7 +31,7 @@ public:
     }
 
     [[nodiscard]] meta::ModuleDefine build() {
-        return meta::ModuleDefine{std::move(name_), std::move(refClass_), std::move(refEnum_)};
+        return meta::ModuleDefine{std::move(name_), std::move(refClass_), std::move(refEnum_), {}, {}};
     }
 };
 

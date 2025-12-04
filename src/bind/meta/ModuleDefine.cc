@@ -2,6 +2,7 @@
 #include "qjspp/runtime/JsEngine.hpp"
 #include "qjspp/runtime/JsException.hpp"
 #include "qjspp/types/Value.hpp"
+#include "quickjs.h"
 
 #include <algorithm>
 #include <cassert>
@@ -13,12 +14,16 @@ namespace qjspp::bind {
 
 meta::ModuleDefine::ModuleDefine(
     std::string                     name,
-    std::vector<ClassDefine const*> class_,
-    std::vector<EnumDefine const*>  enum_
+    std::vector<ClassDefine const*> refClass,
+    std::vector<EnumDefine const*>  refEnum,
+    std::vector<VarExport>          exports,
+    std::vector<FunctionExport>     exportsFunctions
 )
 : name_(std::move(name)),
-  refClass_(std::move(class_)),
-  refEnum_(std::move(enum_)) {}
+  refClass_(std::move(refClass)),
+  refEnum_(std::move(refEnum)),
+  exports_(std::move(exports)),
+  exportsFunctions_(std::move(exportsFunctions)) {}
 
 JSModuleDef* bind::meta::ModuleDefine::init(JsEngine* engine) const {
     auto module = JS_NewCModule(engine->context_, name_.c_str(), [](JSContext* ctx, JSModuleDef* module) -> int {
@@ -64,6 +69,13 @@ void bind::meta::ModuleDefine::_performExportDeclarations(JsEngine* engine, JSMo
     for (auto& e : refEnum_) {
         JsException::check(JS_AddModuleExport(engine->context_, module, e->name_.c_str()));
     }
+    // TODO: 暂时禁用
+    // for (auto& v : exports_) {
+    //     JsException::check(JS_AddModuleExport(engine->context_, module, v.name_.c_str()));
+    // }
+    // for (auto& f : exportsFunctions_) {
+    //     JsException::check(JS_AddModuleExport(engine->context_, module, f.name_.c_str()));
+    // }
 }
 void bind::meta::ModuleDefine::_performExports(JsEngine* engine, JSContext* ctx, JSModuleDef* module) const {
     for (auto& def : refClass_) {
