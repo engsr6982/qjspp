@@ -1,15 +1,3 @@
-#include "qjspp/runtime/JsEngine.hpp"
-#include "qjspp/Forward.hpp"
-#include "qjspp/bind/meta/ClassDefine.hpp"
-#include "qjspp/bind/meta/EnumDefine.hpp"
-#include "qjspp/bind/meta/ModuleDefine.hpp"
-#include "qjspp/runtime/JsException.hpp"
-#include "qjspp/runtime/Locker.hpp"
-#include "qjspp/runtime/TaskQueue.hpp"
-#include "qjspp/types/Arguments.hpp"
-#include "qjspp/types/Function.hpp"
-#include "qjspp/types/String.hpp"
-#include "qjspp/types/Value.hpp"
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -21,6 +9,20 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+
+#include "qjspp/Forward.hpp"
+#include "qjspp/bind/meta/ClassDefine.hpp"
+#include "qjspp/bind/meta/EnumDefine.hpp"
+#include "qjspp/bind/meta/ModuleDefine.hpp"
+#include "qjspp/runtime/JsEngine.hpp"
+#include "qjspp/runtime/JsException.hpp"
+#include "qjspp/runtime/Locker.hpp"
+#include "qjspp/runtime/TaskQueue.hpp"
+#include "qjspp/runtime/detail/ModuleLoader.hpp"
+#include "qjspp/types/Arguments.hpp"
+#include "qjspp/types/Function.hpp"
+#include "qjspp/types/String.hpp"
+#include "qjspp/types/Value.hpp"
 
 
 namespace qjspp {
@@ -43,137 +45,7 @@ void JsEngine::kTemplateClassFinalizer(JSRuntime*, JSValue val) {
         delete managed_resource;
     }
 }
-bool JsEngine::kUpdateModuleMainFlag(JSContext* ctx, JSModuleDef* module, bool isMain) {
-    auto meta = JS_GetImportMeta(ctx, module);
-    if (JS_IsException(meta)) {
-        return false;
-    }
-    JS_DefinePropertyValueStr(ctx, meta, "main", JS_NewBool(ctx, isMain), JS_PROP_C_W_E);
-    JS_FreeValue(ctx, meta);
-    return true;
-}
-bool JsEngine::kUpdateModuleUrl(JSContext* ctx, JSModuleDef* module, std::string_view url) {
-    auto meta = JS_GetImportMeta(ctx, module);
-    if (JS_IsException(meta)) {
-        return false;
-    }
-    JS_DefinePropertyValueStr(ctx, meta, "url", JS_NewString(ctx, url.data()), JS_PROP_C_W_E);
-    JS_FreeValue(ctx, meta);
-    return true;
-}
-bool JsEngine::kUpdateModuleMeta(JSContext* ctx, JSModuleDef* module, std::string_view url, bool isMain) {
-    return kUpdateModuleUrl(ctx, module, url) && kUpdateModuleMainFlag(ctx, module, isMain);
-}
 
-std::optional<std::filesystem::path> JsEngine::ModuleLoader::resolveWithFallback(const std::filesystem::path& p) {
-    if (is_regular_file(p)) return p;
-
-    auto js  = p;
-    js      += ".js";
-    if (is_regular_file(js)) return js;
-
-    auto mjs  = p;
-    mjs      += ".mjs";
-    if (is_regular_file(mjs)) return mjs;
-
-    return std::nullopt;
-}
-
-/* ModuleLoader impl */
-constexpr std::string_view FilePrefix = "file://";
-char* JsEngine::ModuleLoader::normalize(JSContext* ctx, const char* base, const char* name, void* opaque) {
-    auto* engine = static_cast<JsEngine*>(opaque);
-    // std::cout << "[normalize] base: " << base << ", name: " << name << std::endl;
-
-    std::string_view baseView{base};
-    std::string_view nameView{name};
-
-    // 1) 各种奇奇怪怪的 <eval>
-    if (baseView.starts_with('<') && baseView.ends_with('>')) {
-        return js_strdup(ctx, name);
-    }
-
-    // 2) 检查是否是原生模块
-    if (engine->nativeModules_.contains(name)) {
-        return js_strdup(ctx, name);
-    }
-
-    // 3) 检查是否是标准文件协议开头
-    if (std::strncmp(name, FilePrefix.data(), FilePrefix.size()) == 0) {
-        return js_strdup(ctx, name);
-    }
-
-    // 处理相对路径（./ 或 ../）
-    std::string baseStr(base);
-    if (baseStr.rfind(FilePrefix, 0) == 0) {
-        baseStr.erase(0, FilePrefix.size()); // 去掉 file://
-    }
-
-    // 获取 base 所在目录
-    std::filesystem::path basePath(baseStr);
-    basePath = basePath.parent_path();
-
-    // 拼接相对路径
-    std::filesystem::path targetPath = basePath / name;
-
-    // 规范化（处理 .. 和 .）
-    std::error_code ec;
-    targetPath = std::filesystem::weakly_canonical(targetPath, ec);
-    if (ec) {
-        JS_ThrowReferenceError(ctx, "Invalid path: %s", name);
-        return nullptr;
-    }
-
-    auto resolved = resolveWithFallback(targetPath);
-    if (!resolved) {
-        JS_ThrowReferenceError(ctx, "Cannot resolve module: %s", name);
-        return nullptr;
-    }
-
-    // 重新加上 file:// 前缀
-    std::string fullUrl = std::string(FilePrefix) + (*resolved).generic_string();
-
-    return js_strdup(ctx, fullUrl.c_str());
-}
-JSModuleDef* JsEngine::ModuleLoader::loader(JSContext* ctx, const char* canonical, void* opaque) {
-    auto* engine = static_cast<JsEngine*>(opaque);
-    // std::cout << "[loader] canonical: " << canonical << std::endl;
-
-    // 1) 检查是否是原生模块
-    auto iter = engine->nativeModules_.find(canonical);
-    if (iter != engine->nativeModules_.end()) {
-        auto module = iter->second;
-        return module->init(engine);
-    }
-
-    // 2) file:// 协议 => 读取文件并编译
-    if (std::strncmp(canonical, FilePrefix.data(), FilePrefix.size()) == 0) {
-        std::string   path = canonical + FilePrefix.size();
-        std::ifstream ifs(path);
-        if (!ifs) {
-            JS_ThrowReferenceError(ctx, "Module file not found: %s", path.c_str());
-            return nullptr;
-        }
-        std::string source((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-        ifs.close();
-
-        // 编译模块
-        JSValue result =
-            JS_Eval(ctx, source.c_str(), source.size(), canonical, JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-        if (JS_IsException(result)) return nullptr;
-
-        // 更新 import meta
-        auto* m = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
-        if (!kUpdateModuleMeta(ctx, m, canonical, false)) {
-            JS_FreeValue(ctx, result);
-            return nullptr;
-        }
-        JS_FreeValue(ctx, result);
-        return m;
-    }
-
-    return nullptr;
-}
 
 /* JsEngine impl */
 JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQueue>()) {
@@ -223,7 +95,7 @@ JsEngine::JsEngine() : runtime_(JS_NewRuntime()), queue_(std::make_unique<TaskQu
 
     JS_SetRuntimeOpaque(runtime_, this);
     JS_SetContextOpaque(context_, this);
-    JS_SetModuleLoaderFunc(runtime_, &ModuleLoader::normalize, &ModuleLoader::loader, this);
+    JS_SetModuleLoaderFunc(runtime_, &detail::ModuleLoader::normalize, &detail::ModuleLoader::loader, this);
 }
 
 JsEngine::~JsEngine() {
@@ -315,7 +187,7 @@ Value JsEngine::loadScript(std::filesystem::path const& path, bool main) {
     // 2) 设置模块元数据
     assert(JS_VALUE_GET_TAG(result) == JS_TAG_MODULE);
     auto module = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
-    kUpdateModuleMainFlag(context_, module, main);
+    detail::ModuleLoader::setModuleMainFlag(context_, module, main);
 
     // 3) 执行模块
     result = JS_EvalFunction(context_, result);
@@ -354,9 +226,9 @@ void JsEngine::loadByteCode(std::filesystem::path const& path, bool main) {
 #ifdef _WIN32
         std::replace(url.begin(), url.end(), '\\', '/');
 #endif
-        url         = std::string{FilePrefix} + url;
+        url         = std::string{detail::ModuleLoader::kFilePrefix} + url;
         auto module = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(result));
-        kUpdateModuleMeta(context_, module, url, main);
+        detail::ModuleLoader::setModuleMeta(context_, module, url, main);
     }
 
     // 3) 执行模块
@@ -625,44 +497,37 @@ Object JsEngine::newJsPrototype(bind::meta::ClassDefine const& def) const {
 #ifndef QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO
     prototype.set(
         kInstanceClassHelperEqlaus,
-        newManagedRawFunction(
-            definePtr,
-            nullptr,
-            [](Arguments const& args, void* data1, void*) -> Value {
-                auto const classID = JS_GetClassID(args.thiz_);
-                assert(classID != JS_INVALID_CLASS_ID);
+        newManagedRawFunction(definePtr, nullptr, [](Arguments const& args, void* data1, void*) -> Value {
+            auto const classID = JS_GetClassID(args.thiz_);
+            assert(classID != JS_INVALID_CLASS_ID);
 
-                auto managed  = static_cast<bind::JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
-                auto instance = (*managed)();
-                if (instance == nullptr) [[unlikely]] {
-                    throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
-                }
-                if (kInstanceCallCheckClassDefine
-                    && !ClassDefineCheckHelper(managed->define_, static_cast<bind::meta::ClassDefine*>(data1)))
-                    [[unlikely]] {
-                    throw JsException{
-                        JsException::Type::TypeError,
-                        "This object is not a valid instance of this class."
-                    };
-                }
-                const_cast<Arguments&>(args).managed_ = managed; // for Arguments::getJsManagedResource
-
-                // lhs.$equals(rhs): boolean; lhs == rhs
-                if (args.length_ != 1) [[unlikely]] {
-                    throw JsException{JsException::Type::TypeError, "$equals() takes exactly one argument."};
-                }
-
-                auto rhs = args[0];
-                if (!rhs.isObject() || !args.engine_->isInstanceOf(rhs.asObject(), *managed->define_)) {
-                    return Boolean{false};
-                }
-
-                auto rhsInstance = args.engine_->getNativeInstanceOf(rhs.asObject(), *managed->define_);
-
-                bool const val = (*managed->define_->instanceMemberDef_.equals_)(instance, rhsInstance);
-                return Boolean{val};
+            auto managed  = static_cast<bind::JsManagedResource*>(JS_GetOpaque(args.thiz_, classID));
+            auto instance = (*managed)();
+            if (instance == nullptr) [[unlikely]] {
+                throw JsException{JsException::Type::ReferenceError, "object is no longer available"};
             }
-        )
+            if (kInstanceCallCheckClassDefine
+                && !ClassDefineCheckHelper(managed->define_, static_cast<bind::meta::ClassDefine*>(data1)))
+                [[unlikely]] {
+                throw JsException{JsException::Type::TypeError, "This object is not a valid instance of this class."};
+            }
+            const_cast<Arguments&>(args).managed_ = managed; // for Arguments::getJsManagedResource
+
+            // lhs.$equals(rhs): boolean; lhs == rhs
+            if (args.length_ != 1) [[unlikely]] {
+                throw JsException{JsException::Type::TypeError, "$equals() takes exactly one argument."};
+            }
+
+            auto rhs = args[0];
+            if (!rhs.isObject() || !args.engine_->isInstanceOf(rhs.asObject(), *managed->define_)) {
+                return Boolean{false};
+            }
+
+            auto rhsInstance = args.engine_->getNativeInstanceOf(rhs.asObject(), *managed->define_);
+
+            bool const val = (*managed->define_->instanceMemberDef_.equals_)(instance, rhsInstance);
+            return Boolean{val};
+        })
     );
 #endif // QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO
 

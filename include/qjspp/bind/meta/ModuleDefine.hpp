@@ -40,9 +40,10 @@ struct ModuleDefine {
         std::vector<FunctionExport>     exportsFunctions
     );
 
-private:
+    // internal function
     JSModuleDef* init(JsEngine* engine) const;
 
+private:
     void _performExportDeclarations(JsEngine* engine, JSModuleDef* module) const;
     void _performExports(JsEngine* engine, JSContext* ctx, JSModuleDef* module) const;
     friend JsEngine;

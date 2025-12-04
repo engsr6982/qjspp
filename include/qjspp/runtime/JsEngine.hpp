@@ -2,7 +2,7 @@
 #include "TaskQueue.hpp"
 #include "qjspp/Forward.hpp"
 #include "qjspp/Global.hpp"
-#include "quickjs.h"
+
 #include <cstddef>
 #include <filesystem>
 #include <memory>
@@ -11,17 +11,33 @@
 #include <unordered_map>
 
 
+// forward declaration
 namespace qjspp {
+
 class JsException;
+
 namespace bind {
+
 struct JsManagedResource;
 namespace meta {
+
 struct StaticMemberDefine;
 class EnumDefine;
 struct ModuleDefine;
 class ClassDefine;
+
 } // namespace meta
+
 } // namespace bind
+namespace detail {
+struct ModuleLoader;
+}
+
+} // namespace qjspp
+
+
+namespace qjspp {
+
 
 class JsEngine final {
 public:
@@ -195,16 +211,7 @@ private:
     JSClassID kFunctionDataClassId{JS_INVALID_CLASS_ID}; // Function
 
     static void kTemplateClassFinalizer(JSRuntime*, JSValue val);
-    static bool kUpdateModuleMainFlag(JSContext* ctx, JSModuleDef* module, bool isMain);
-    static bool kUpdateModuleUrl(JSContext* ctx, JSModuleDef* module, std::string_view url);
-    static bool kUpdateModuleMeta(JSContext* ctx, JSModuleDef* module, std::string_view url, bool isMain);
 
-    struct ModuleLoader {
-        static std::optional<std::filesystem::path> resolveWithFallback(const std::filesystem::path& p);
-
-        static char*        normalize(JSContext* ctx, const char* base, const char* name, void* opaque);
-        static JSModuleDef* loader(JSContext* ctx, const char* canonical, void* opaque);
-    };
 
     class PauseGc final {
         JsEngine* engine_;
@@ -220,6 +227,7 @@ private:
     friend class Array; // 访问 lengthAtom_
     friend class Function;
     friend class PauseGc;
+    friend detail::ModuleLoader;
     friend bind::meta::ModuleDefine;
 };
 
