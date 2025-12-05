@@ -438,16 +438,8 @@ void BindRegistry::_buildModuleExports(bind::meta::ModuleDefine const& def, JSMo
     auto cache = ModuleExportCache{};
     cache.constants_.reserve(def.variables_.size());
     for (auto& var : def.variables_) {
-        auto getter = FunctionFactory::create(
-            engine_,
-            const_cast<bind::meta::ModuleDefine::ConstantExport*>(&var),
-            nullptr,
-            [](Arguments const&, void* var, void*) -> Value {
-                auto varExport = static_cast<bind::meta::ModuleDefine::ConstantExport*>(var);
-                return (varExport->getter_)();
-            }
-        );
-        cache.constants_.emplace(&var, std::move(getter));
+        auto value = var.getter_();
+        cache.constants_.emplace(&var, std::move(value));
     }
 
     cache.functions_.rehash(def.functions_.size());

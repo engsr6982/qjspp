@@ -16,13 +16,26 @@
 
 
 qjspp::Value JsAssert(qjspp::Arguments const& args) {
-    REQUIRE((args.length() == 1 || args.length() == 2));
-    REQUIRE(args[0].isBoolean());
-    bool val = args[0].asBoolean().value() == true;
-    if (args.length() == 2 && !val) {
-        std::cout << "Assert Failed: " << args[1].toString().value() << std::endl;
+    if (args.length() == 0) {
+        throw std::runtime_error{"Assert Failed: No Arguments"};
     }
-    REQUIRE(val);
+    if (args.length() == 1) {
+        if (args[0].isBoolean()) {
+            REQUIRE(args[0].asBoolean().value());
+            return {};
+        }
+        goto no_bool;
+    }
+    if (args.length() == 2) {
+        if (args[0].isBoolean()) {
+            if (args[0].asBoolean().value() == false) {
+                throw std::runtime_error{args[1].toString().value()};
+            }
+        } else {
+        no_bool:
+            throw std::runtime_error{"Assert Failed: Not a boolean"};
+        }
+    }
     return {};
 }
 
@@ -219,11 +232,12 @@ qjspp::bind::meta::ModuleDefine NativeModuleDef =
         .addClass(BaseDefine)
         .addClass(DerivedDefine)
         .exportConstant("foo", []() -> qjspp::Value { return qjspp::String{"constant"}; })
-        .exportFunction("assert", JsAssert)
         .exportFunction(
-            "append",
-            static_cast<std::string (*)(std::string const&, std::string const&)>(Util::append),
-            static_cast<std::string (*)(std::string const&, std::string const&, std::string const&)>(Util::append)
+            "log",
+            [](qjspp::Arguments const& args) -> qjspp::Value {
+                std::cout << "log: " << args[0].toString().value() << std::endl;
+                return {};
+            }
         )
         .build();
 
@@ -241,13 +255,19 @@ TEST_CASE_METHOD(TestEngineFixture, "Module Binding") {
     );
 
     REQUIRE_NOTHROW(engine_->eval(
-        "import { assert } from 'native'; assert(true, 'module export function');",
+        "import { log } from 'native'; log('module export function');",
         "<eval>",
         qjspp::JsEngine::EvalType::kModule
     ));
 
     REQUIRE_NOTHROW(engine_->eval(
-        "import { foo } from 'native'; assert(foo == 'constant', 'module export constant');",
+        "'use strict'; import { foo,log } from 'native'; log(`module export constant: ${foo}`);",
+        "<eval>",
+        qjspp::JsEngine::EvalType::kModule
+    ));
+
+    REQUIRE_NOTHROW(engine_->eval(
+        "'use strict'; import { foo,log } from 'native'; foo = '111'; log(`constant reassign: ${foo}`);",
         "<eval>",
         qjspp::JsEngine::EvalType::kModule
     ));
