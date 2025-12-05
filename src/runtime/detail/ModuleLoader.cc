@@ -1,6 +1,8 @@
 #include "qjspp/runtime/detail/ModuleLoader.hpp"
 #include "qjspp/bind/meta/ModuleDefine.hpp"
 #include "qjspp/runtime/JsEngine.hpp"
+#include "qjspp/runtime/detail/BindRegistry.hpp"
+
 
 #include <fstream>
 
@@ -57,7 +59,7 @@ char* ModuleLoader::normalize(JSContext* ctx, const char* base, const char* name
     }
 
     // 2) 检查是否是原生模块
-    if (engine->nativeModules_.contains(name)) {
+    if (engine->bindRegistry_->lazyModules_.contains(name)) {
         return js_strdup(ctx, name);
     }
 
@@ -104,8 +106,8 @@ JSModuleDef* ModuleLoader::loader(JSContext* ctx, const char* canonical, void* o
     // std::cout << "[loader] canonical: " << canonical << std::endl;
 
     // 1) 检查是否是原生模块
-    auto iter = engine->nativeModules_.find(canonical);
-    if (iter != engine->nativeModules_.end()) {
+    auto iter = engine->bindRegistry_->lazyModules_.find(canonical);
+    if (iter != engine->bindRegistry_->lazyModules_.end()) {
         auto module = iter->second;
         return module->init(engine);
     }

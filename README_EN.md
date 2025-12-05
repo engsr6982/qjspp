@@ -54,12 +54,6 @@ Features:
 - **Default: Off**
 - If enabled, `int64_t` / `uint64_t` conversions use JS `Number` instead of `BigInt`.
 
-### `QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG`
-
-- **Default: Off**
-- By default, modifies `Symbol.toStringTag` for registered classes/enums to improve debugging.  
-  Disable to keep original tags.
-
 ### `QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO`
 
 - **Default: Off**

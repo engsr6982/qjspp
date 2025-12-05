@@ -49,11 +49,6 @@
 - **默认：关闭**
 - 启用后 `int64_t` / `uint64_t` 类型在转换时使用 `Number` 而不是 `BigInt`。
 
-### `QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG`
-
-- **默认：关闭**
-- 默认情况下，会修改注册类、静态类、枚举的 `Symbol.toStringTag` 为类名，便于调试。启用后不修改。
-
 ### `QJSPP_DONT_GENERATE_HELPER_EQLAUS_METHDO`
 
 - **默认：关闭**

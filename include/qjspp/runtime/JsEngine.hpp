@@ -31,7 +31,9 @@ class ClassDefine;
 } // namespace bind
 namespace detail {
 struct ModuleLoader;
-}
+struct FunctionFactory;
+struct BindRegistry;
+} // namespace detail
 
 } // namespace qjspp
 
@@ -79,14 +81,14 @@ public:
      * @param def 类定义
      * @note 默认此函数会注册的 native 类挂载到 JavaScript 的全局对象(globalThis)上
      */
-    Object registerClass(bind::meta::ClassDefine const& def);
+    bool registerClass(bind::meta::ClassDefine const& def);
 
     /**
      * 注册一个原生模块
      * @param module 模块
      * @note 注册为模块后，需要使用 import xx from "<name>" 导入
      */
-    void registerModule(bind::meta::ModuleDefine const& module);
+    bool registerModule(bind::meta::ModuleDefine const& module);
 
     /**
      * 注册一个枚举
@@ -97,7 +99,7 @@ public:
      *        对象，将枚举值映射到对象属性上，方便 Js 获取枚举值
      * @note qjspp 会对每个 enum object 设置一个 $name 属性，值为 enum 的名字
      */
-    Object registerEnum(bind::meta::EnumDefine const& def);
+    bool registerEnum(bind::meta::EnumDefine const& def);
 
     /**
      * 创建一个新的 JavaScript 类实例
@@ -163,13 +165,7 @@ public:
     void invokeUnhandledJsException(JsException const& exception, ExceptionDispatchOrigin origin);
 
 private:
-    using RawFunctionCallback = Value (*)(Arguments const&, void*, void*);
-    Object   newJsClass(bind::meta::ClassDefine const& def);
-    Function newManagedRawFunction(void* data1, void* data2, RawFunctionCallback cb) const;
-    Object   newJsConstructor(bind::meta::ClassDefine const& def) const;
-    Object   newJsPrototype(bind::meta::ClassDefine const& def) const;
-    void     implStaticRegister(Object& ctor, bind::meta::StaticMemberDefine const& def) const;
-    Object   implRegisterEnum(bind::meta::EnumDefine const& def);
+    void setObjectToStringTag(Object& obj, std::string_view tag) const;
 
     ::JSRuntime* runtime_{nullptr};
     ::JSContext* context_{nullptr};
@@ -178,39 +174,19 @@ private:
     bool             isDestroying_{false};   // 正在销毁
     std::atomic_bool pumpScheduled_ = false; // 任务队列是否已经调度
 
-    std::shared_ptr<void>        userData_{nullptr}; // 用户数据
-    std::unique_ptr<TaskQueue>   queue_{nullptr};    // 任务队列
-    mutable std::recursive_mutex mutex_;             // 线程安全互斥量
-    JSAtom                       lengthAtom_ = {};   // for Array
-
-#ifndef QJSPP_DONT_PATCH_CLASS_TO_STRING_TAG
-    JSAtom toStringTagSymbol_{}; // for class、enum...
-    void   updateToStringTag(Object& obj, std::string_view tag) const;
-#endif
+    std::shared_ptr<void>        userData_{nullptr};   // 用户数据
+    std::unique_ptr<TaskQueue>   queue_{nullptr};      // 任务队列
+    mutable std::recursive_mutex mutex_;               // 线程安全互斥量
+    JSAtom                       lengthAtom_ = {};     // for Array
+    JSAtom                       toStringTagSymbol_{}; // for class、enum...
 
     UnhandledJsExceptionCallback unhandledJsExceptionCallback_{nullptr};
 
-    std::unordered_map<bind::meta::EnumDefine const*, Object>  nativeEnums_;         // {def, obj}
-    std::unordered_map<bind::meta::ClassDefine const*, Object> nativeStaticClasses_; // {def, obj}
-    std::unordered_map<bind::meta::ClassDefine const*, std::pair<JSValue, JSValue>>
-                                                                      nativeInstanceClasses_; // {ctor, proto}
-    std::unordered_map<std::string, bind::meta::ModuleDefine const*>  nativeModules_;         // {name, def} (懒加载)
-    std::unordered_map<JSModuleDef*, bind::meta::ModuleDefine const*> loadedModules_;         // {module, def}
-
-#ifndef QJSPP_SKIP_INSTANCE_CALL_CHECK_CLASS_DEFINE
-    static constexpr bool kInstanceCallCheckClassDefine = true;
-#else
-    static constexpr bool kInstanceCallCheckClassDefine = false; // 跳过实例调用时检查类定义
-#endif
-
-    static constexpr auto kEnumNameHelperProperty    = "$name";
-    static constexpr auto kInstanceClassHelperEqlaus = "$equals";
+    std::unique_ptr<detail::BindRegistry> bindRegistry_{nullptr};
 
     // helpers
     JSClassID kPointerClassId{JS_INVALID_CLASS_ID};
     JSClassID kFunctionDataClassId{JS_INVALID_CLASS_ID}; // Function
-
-    static void kTemplateClassFinalizer(JSRuntime*, JSValue val);
 
 
     class PauseGc final {
@@ -228,6 +204,8 @@ private:
     friend class Function;
     friend class PauseGc;
     friend detail::ModuleLoader;
+    friend detail::FunctionFactory;
+    friend detail::BindRegistry;
     friend bind::meta::ModuleDefine;
 };
 

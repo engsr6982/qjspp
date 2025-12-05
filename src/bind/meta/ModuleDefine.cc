@@ -2,7 +2,8 @@
 #include "qjspp/runtime/JsEngine.hpp"
 #include "qjspp/runtime/JsException.hpp"
 #include "qjspp/types/Value.hpp"
-#include "quickjs.h"
+
+#include "qjspp/runtime/detail/BindRegistry.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -31,8 +32,8 @@ JSModuleDef* bind::meta::ModuleDefine::init(JsEngine* engine) const {
 
         ModuleDefine const* def = nullptr;
 
-        auto iter = engine->loadedModules_.find(module);
-        if (iter != engine->loadedModules_.end()) {
+        auto iter = engine->bindRegistry_->loadedModules_.find(module);
+        if (iter != engine->bindRegistry_->loadedModules_.end()) {
             // 模块已实例化，直接获取
             def = iter->second;
         } else {
@@ -44,16 +45,16 @@ JSModuleDef* bind::meta::ModuleDefine::init(JsEngine* engine) const {
                 return -1; // 无法获取模块名
             }
 
-            auto iter = engine->nativeModules_.find(cname); // 查找模块定义(使用模块名)
+            auto iter = engine->bindRegistry_->lazyModules_.find(cname); // 查找模块定义(使用模块名)
             JS_FreeCString(ctx, cname);
-            if (iter == engine->nativeModules_.end()) {
+            if (iter == engine->bindRegistry_->lazyModules_.end()) {
                 return -1; // 逻辑错误，未注册的模块
             }
             def = iter->second;
         }
         assert(def != nullptr);
         def->_performExports(engine, ctx, module);
-        engine->loadedModules_.emplace(module, def);
+        engine->bindRegistry_->loadedModules_.emplace(module, def);
         return 0;
     });
 
@@ -82,28 +83,30 @@ void bind::meta::ModuleDefine::_performExports(JsEngine* engine, JSContext* ctx,
         Value ctor{}; // undefined
 
         if (def->hasConstructor()) {
-            auto iter = engine->nativeInstanceClasses_.find(def);
-            if (iter != engine->nativeInstanceClasses_.end()) {
+            auto iter = engine->bindRegistry_->instanceClasses_.find(def);
+            if (iter != engine->bindRegistry_->instanceClasses_.end()) {
                 ctor = Value::wrap<Value>(iter->second.first);
             }
         } else {
-            auto iter = engine->nativeStaticClasses_.find(def);
-            if (iter != engine->nativeStaticClasses_.end()) {
+            auto iter = engine->bindRegistry_->staticClasses_.find(def);
+            if (iter != engine->bindRegistry_->staticClasses_.end()) {
                 ctor = iter->second;
             }
         }
 
         if (!ctor.isValid()) {
-            ctor = engine->newJsClass(*def); // 无缓存进行注册
+            ctor = engine->bindRegistry_->_registerClass(*def); // 无缓存进行注册
         }
 
         JsException::check(JS_SetModuleExport(ctx, module, def->name_.c_str(), JS_DupValue(ctx, Value::extract(ctor))));
     }
+
     for (auto& def : refEnum_) {
-        if (!engine->nativeEnums_.contains(def)) {
-            engine->implRegisterEnum(*def); // 无缓存进行注册
+        if (!engine->bindRegistry_->enums_.contains(def)) {
+            auto enu = engine->bindRegistry_->_buildEnum(*def);
+            engine->bindRegistry_->enums_.emplace(def, enu);
         }
-        auto obj = engine->nativeEnums_.at(def);
+        auto obj = engine->bindRegistry_->enums_.at(def);
         JsException::check(JS_SetModuleExport(ctx, module, def->name_.c_str(), JS_DupValue(ctx, Value::extract(obj))));
     }
 }

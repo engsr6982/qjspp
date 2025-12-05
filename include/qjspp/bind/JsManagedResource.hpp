@@ -7,6 +7,9 @@
 namespace qjspp {
 
 class JsEngine;
+namespace detail {
+struct BindRegistry;
+}
 
 namespace bind {
 namespace meta {
@@ -27,7 +30,7 @@ private:
     JsEngine const*          engine_{nullptr};
     bool const               constructFromJs_{false};
 
-    friend JsEngine;
+    friend detail::BindRegistry;
 
 public:
     [[nodiscard]] inline void* get() const { return resource_ ? accessor_(resource_) : nullptr; }

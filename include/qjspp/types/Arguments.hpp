@@ -8,6 +8,11 @@ class JsEngine;
 namespace bind {
 struct JsManagedResource;
 }
+namespace detail {
+struct FunctionFactory;
+struct BindRegistry;
+} // namespace detail
+
 
 class Arguments final {
     JsEngine*                engine_;
@@ -16,7 +21,8 @@ class Arguments final {
     JSValueConst*            args_;
     bind::JsManagedResource* managed_{nullptr};
 
-    friend class JsEngine;
+    friend detail::FunctionFactory;
+    friend detail::BindRegistry;
     friend class Function;
 
     explicit Arguments(JsEngine* engine, JSValueConst thiz, int length, JSValueConst* args);
