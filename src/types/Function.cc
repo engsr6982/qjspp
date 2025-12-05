@@ -4,6 +4,7 @@
 #include "qjspp/runtime/JsException.hpp"
 #include "qjspp/runtime/Locker.hpp"
 #include "qjspp/types/Arguments.hpp"
+#include "qjspp/types/String.hpp"
 #include "qjspp/types/Value.hpp"
 
 #include <cassert>

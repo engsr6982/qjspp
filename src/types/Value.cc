@@ -1,5 +1,6 @@
 #include "qjspp/types/Value.hpp"
 
+#include "qjspp/runtime/JsException.hpp"
 #include "qjspp/runtime/Locker.hpp"
 #include "qjspp/types/Array.hpp"
 #include "qjspp/types/BigInt.hpp"
@@ -10,6 +11,7 @@
 #include "qjspp/types/Object.hpp"
 #include "qjspp/types/String.hpp"
 #include "qjspp/types/Undefined.hpp"
+
 
 namespace qjspp {
 

@@ -4,9 +4,19 @@
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "qjspp/Forward.hpp"
 #include "qjspp/runtime/JsEngine.hpp"
+#include "qjspp/runtime/JsException.hpp"
 #include "qjspp/runtime/Locker.hpp"
+#include "qjspp/types/Arguments.hpp"
+#include "qjspp/types/Array.hpp"
+#include "qjspp/types/BigInt.hpp"
+#include "qjspp/types/Boolean.hpp"
 #include "qjspp/types/Function.hpp"
+#include "qjspp/types/Null.hpp"
+#include "qjspp/types/Number.hpp"
+#include "qjspp/types/String.hpp"
+#include "qjspp/types/Undefined.hpp"
 #include "qjspp/types/Value.hpp"
+
 
 #include <algorithm>
 #include <cstdint>
@@ -156,20 +166,20 @@ TEST_CASE_METHOD(TestEngineFixture, "Values") {
     }
 
     SECTION("Test Function") {
-        auto sub    = qjspp::Function::newFunction(::sub);
-        auto add    = qjspp::Function::newFunction(::add);
-        auto append = qjspp::Function::newFunction(
-            static_cast<std::string (*)(std::string const&, std::string const&)>(&::append),
-            static_cast<std::string (*)(std::string const&, int)>(&::append)
-        );
+        auto sub = qjspp::Function::newFunction(::sub);
+        // auto add    = qjspp::Function::newFunction(::add);
+        // auto append = qjspp::Function::newFunction(
+        //     static_cast<std::string (*)(std::string const&, std::string const&)>(&::append),
+        //     static_cast<std::string (*)(std::string const&, int)>(&::append)
+        // );
         engine_->globalThis().set("sub", sub);
-        engine_->globalThis().set("add", add);
-        engine_->globalThis().set("append", append);
+        // engine_->globalThis().set("add", add);
+        // engine_->globalThis().set("append", append);
 
         REQUIRE(engine_->eval("sub(1, 2)").asNumber().getInt32() == -1);
-        REQUIRE(engine_->eval("add(1, 2)").asNumber().getInt32() == 3);
-        REQUIRE(engine_->eval("append('hello', 'world')").asString().value() == "helloworld");
-        REQUIRE(engine_->eval("append('hello', 123)").asString().value() == "hello123");
+        // REQUIRE(engine_->eval("add(1, 2)").asNumber().getInt32() == 3);
+        // REQUIRE(engine_->eval("append('hello', 'world')").asString().value() == "helloworld");
+        // REQUIRE(engine_->eval("append('hello', 123)").asString().value() == "hello123");
 
 
         // 异常传递

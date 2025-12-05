@@ -17,14 +17,6 @@ public:
 
     [[nodiscard]] static Function newFunction(FunctionCallback&& callback);
 
-    template <typename T>
-        requires(!concepts::JsFunctionCallback<T>)
-    [[nodiscard]] static Function newFunction(T&& func);
-
-    template <typename... Overloads>
-        requires(sizeof...(Overloads) > 1)
-    [[nodiscard]] static Function newFunction(Overloads&&... overloads);
-
     Value call(Value const& thiz, std::vector<Value> const& args) const;
 
     Value call(Value const& thiz, std::initializer_list<Value> args) const;

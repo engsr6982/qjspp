@@ -1,6 +1,11 @@
 #include "qjspp/runtime/detail/FunctionFactory.hpp"
+#include "qjspp/runtime/JsEngine.hpp"
+#include "qjspp/runtime/JsException.hpp"
+#include "qjspp/types/Arguments.hpp"
 #include "qjspp/types/Function.hpp"
 #include "qjspp/types/Value.hpp"
+
+#include <array>
 
 namespace qjspp::detail {
 

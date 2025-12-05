@@ -1,11 +1,15 @@
 #include "qjspp/runtime/detail/BindRegistry.hpp"
 #include "qjspp/bind/meta/ModuleDefine.hpp"
 #include "qjspp/runtime/JsEngine.hpp"
+#include "qjspp/runtime/JsException.hpp"
+#include "qjspp/runtime/Locker.hpp"
 #include "qjspp/runtime/detail/FunctionFactory.hpp"
 #include "qjspp/types/Arguments.hpp"
+#include "qjspp/types/Boolean.hpp"
 #include "qjspp/types/Function.hpp"
+#include "qjspp/types/Number.hpp"
+#include "qjspp/types/String.hpp"
 #include "qjspp/types/Value.hpp"
-
 
 #include <algorithm>
 #include <cassert>
