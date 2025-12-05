@@ -1,7 +1,9 @@
 #pragma once
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
+#include "qjspp/Global.hpp"
 #include "qjspp/bind/meta/ClassDefine.hpp"
 #include "qjspp/bind/meta/EnumDefine.hpp"
 #include "qjspp/bind/meta/MemberDefine.hpp"
@@ -26,6 +28,18 @@ struct BindRegistry final {
     std::unordered_map<std::string, bind::meta::ModuleDefine const*>                lazyModules_;     // loaded lazily
     std::unordered_map<JSModuleDef*, bind::meta::ModuleDefine const*>               loadedModules_;
 
+    // module export constant、functions cache
+    struct ModuleExportCache {
+        std::unordered_map<bind::meta::ModuleDefine::ConstantExport const*, Value>    constants_;
+        std::unordered_map<bind::meta::ModuleDefine::FunctionExport const*, Function> functions_;
+
+        ModuleExportCache()                                        = default;
+        ModuleExportCache(ModuleExportCache&&) noexcept            = default;
+        ModuleExportCache& operator=(ModuleExportCache&&) noexcept = default;
+        QJSPP_DISABLE_COPY(ModuleExportCache);
+    };
+    std::unordered_map<JSModuleDef*, ModuleExportCache> moduleExports_;
+
     explicit BindRegistry(JsEngine& engine);
     ~BindRegistry();
 
@@ -42,6 +56,8 @@ struct BindRegistry final {
     Function _buildClassConstructor(bind::meta::ClassDefine const& def) const;
     Object   _buildClassPrototype(bind::meta::ClassDefine const& def) const;
     void     _buildClassStatic(bind::meta::StaticMemberDefine const& def, Object& ctor) const;
+
+    void _buildModuleExports(bind::meta::ModuleDefine const& def, JSModuleDef* m);
 
     // quickjs callbacks
     static void kInstanceClassFinalizer(JSRuntime*, JSValue val);

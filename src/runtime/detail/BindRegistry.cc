@@ -1,10 +1,13 @@
 #include "qjspp/runtime/detail/BindRegistry.hpp"
+#include "qjspp/bind/meta/ModuleDefine.hpp"
 #include "qjspp/runtime/JsEngine.hpp"
 #include "qjspp/runtime/detail/FunctionFactory.hpp"
+#include "qjspp/types/Arguments.hpp"
 #include "qjspp/types/Function.hpp"
 #include "qjspp/types/Value.hpp"
 
 
+#include <algorithm>
 #include <cassert>
 
 namespace qjspp::detail {
@@ -12,8 +15,9 @@ namespace qjspp::detail {
 BindRegistry::BindRegistry(JsEngine& engine) : engine_(engine) {}
 BindRegistry::~BindRegistry() {
     Locker scope{engine_};
-    for (auto&& [def, obj] : enums_) obj.reset();
-    for (auto&& [def, obj] : staticClasses_) obj.reset();
+    enums_.clear();
+    staticClasses_.clear();
+    moduleExports_.clear();
     for (auto&& [def, data] : instanceClasses_) {
         JS_FreeValue(engine_.context_, data.first);
         JS_FreeValue(engine_.context_, data.second);
@@ -430,6 +434,38 @@ void BindRegistry::_buildClassStatic(bind::meta::StaticMemberDefine const& def, 
     }
 }
 
+void BindRegistry::_buildModuleExports(bind::meta::ModuleDefine const& def, JSModuleDef* m) {
+    auto cache = ModuleExportCache{};
+    cache.constants_.reserve(def.variables_.size());
+    for (auto& var : def.variables_) {
+        auto getter = FunctionFactory::create(
+            engine_,
+            const_cast<bind::meta::ModuleDefine::ConstantExport*>(&var),
+            nullptr,
+            [](Arguments const&, void* var, void*) -> Value {
+                auto varExport = static_cast<bind::meta::ModuleDefine::ConstantExport*>(var);
+                return (varExport->getter_)();
+            }
+        );
+        cache.constants_.emplace(&var, std::move(getter));
+    }
+
+    cache.functions_.rehash(def.functions_.size());
+    for (auto& fn : def.functions_) {
+        auto fnVal = FunctionFactory::create(
+            engine_,
+            const_cast<bind::meta::ModuleDefine::FunctionExport*>(&fn),
+            nullptr,
+            [](Arguments const& args, void* data1, void*) -> Value {
+                auto function = static_cast<bind::meta::ModuleDefine::FunctionExport*>(data1);
+                return (function->callback_)(args);
+            }
+        );
+        cache.functions_.emplace(&fn, std::move(fnVal));
+    }
+
+    moduleExports_.emplace(m, std::move(cache));
+}
 
 void BindRegistry::kInstanceClassFinalizer(JSRuntime*, JSValue val) {
     auto classID = JS_GetClassID(val);

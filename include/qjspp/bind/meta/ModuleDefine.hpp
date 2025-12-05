@@ -19,24 +19,23 @@ struct ModuleDefine {
     std::vector<ClassDefine const*> const refClass_;
     std::vector<EnumDefine const*> const  refEnum_;
 
-    // TODO: export fucntion / export let / export const
-    struct VarExport {
+    // export constant / export const
+    struct ConstantExport {
         std::string const    name_;
-        GetterCallback const getter_;
-        SetterCallback const setter_; // if nullptr, it's a const
+        GetterCallback const getter_; // return a constant value
     };
     struct FunctionExport {
         std::string const      name_;
         FunctionCallback const callback_;
     };
-    std::vector<VarExport> const      exports_;
-    std::vector<FunctionExport> const exportsFunctions_;
+    std::vector<ConstantExport> const variables_;
+    std::vector<FunctionExport> const functions_;
 
     explicit ModuleDefine(
         std::string                     name,
         std::vector<ClassDefine const*> refClass,
         std::vector<EnumDefine const*>  refEnum,
-        std::vector<VarExport>          exports,
+        std::vector<ConstantExport>     exports,
         std::vector<FunctionExport>     exportsFunctions
     );
 

@@ -15,6 +15,17 @@
 #include <utility>
 
 
+qjspp::Value JsAssert(qjspp::Arguments const& args) {
+    REQUIRE((args.length() == 1 || args.length() == 2));
+    REQUIRE(args[0].isBoolean());
+    bool val = args[0].asBoolean().value() == true;
+    if (args.length() == 2 && !val) {
+        std::cout << "Assert Failed: " << args[1].toString().value() << std::endl;
+    }
+    REQUIRE(val);
+    return {};
+}
+
 struct Util {
     static int         add(int a, int b) { return a + b; }
     static std::string append(std::string const& a, std::string const& b) { return a + b; }
@@ -203,7 +214,18 @@ TEST_CASE_METHOD(TestEngineFixture, "Instance Binding") {
 }
 
 qjspp::bind::meta::ModuleDefine NativeModuleDef =
-    qjspp::bind::defineModule("native").addClass(UtilDefine).addClass(BaseDefine).addClass(DerivedDefine).build();
+    qjspp::bind::defineModule("native")
+        .addClass(UtilDefine)
+        .addClass(BaseDefine)
+        .addClass(DerivedDefine)
+        .exportConstant("foo", []() -> qjspp::Value { return qjspp::String{"constant"}; })
+        .exportFunction("assert", JsAssert)
+        .exportFunction(
+            "append",
+            static_cast<std::string (*)(std::string const&, std::string const&)>(Util::append),
+            static_cast<std::string (*)(std::string const&, std::string const&, std::string const&)>(Util::append)
+        )
+        .build();
 
 TEST_CASE_METHOD(TestEngineFixture, "Module Binding") {
     qjspp::Locker scope{engine_};
@@ -217,6 +239,18 @@ TEST_CASE_METHOD(TestEngineFixture, "Module Binding") {
     REQUIRE_NOTHROW(
         engine_->eval("import { Util } from 'native'; Util.add(8,8);", "<eval>", qjspp::JsEngine::EvalType::kModule)
     );
+
+    REQUIRE_NOTHROW(engine_->eval(
+        "import { assert } from 'native'; assert(true, 'module export function');",
+        "<eval>",
+        qjspp::JsEngine::EvalType::kModule
+    ));
+
+    REQUIRE_NOTHROW(engine_->eval(
+        "import { foo } from 'native'; assert(foo == 'constant', 'module export constant');",
+        "<eval>",
+        qjspp::JsEngine::EvalType::kModule
+    ));
 
     REQUIRE_NOTHROW(engine_->loadScript(std::filesystem::current_path() / "tests" / "module.js"));
 }
@@ -238,17 +272,6 @@ public:
     }
 };
 
-
-qjspp::Value JsAssert(qjspp::Arguments const& args) {
-    REQUIRE((args.length() == 1 || args.length() == 2));
-    REQUIRE(args[0].isBoolean());
-    bool val = args[0].asBoolean().value() == true;
-    if (args.length() == 2 && !val) {
-        std::cout << "Assert Failed: " << args[1].toString().value() << std::endl;
-    }
-    REQUIRE(val);
-    return {};
-}
 
 qjspp::bind::meta::ClassDefine TestFormDefine = qjspp::bind::defineClass<TestForm>("TestForm")
                                                     .constructor<>()

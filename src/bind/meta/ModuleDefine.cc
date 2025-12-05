@@ -1,4 +1,4 @@
-#include "qjspp/bind/builder/ModuleDefineBuilder.hpp"
+#include "qjspp/bind/meta/ModuleDefine.hpp"
 #include "qjspp/runtime/JsEngine.hpp"
 #include "qjspp/runtime/JsException.hpp"
 #include "qjspp/types/Value.hpp"
@@ -17,14 +17,14 @@ meta::ModuleDefine::ModuleDefine(
     std::string                     name,
     std::vector<ClassDefine const*> refClass,
     std::vector<EnumDefine const*>  refEnum,
-    std::vector<VarExport>          exports,
+    std::vector<ConstantExport>     exports,
     std::vector<FunctionExport>     exportsFunctions
 )
 : name_(std::move(name)),
   refClass_(std::move(refClass)),
   refEnum_(std::move(refEnum)),
-  exports_(std::move(exports)),
-  exportsFunctions_(std::move(exportsFunctions)) {}
+  variables_(std::move(exports)),
+  functions_(std::move(exportsFunctions)) {}
 
 JSModuleDef* bind::meta::ModuleDefine::init(JsEngine* engine) const {
     auto module = JS_NewCModule(engine->context_, name_.c_str(), [](JSContext* ctx, JSModuleDef* module) -> int {
@@ -70,13 +70,12 @@ void bind::meta::ModuleDefine::_performExportDeclarations(JsEngine* engine, JSMo
     for (auto& e : refEnum_) {
         JsException::check(JS_AddModuleExport(engine->context_, module, e->name_.c_str()));
     }
-    // TODO: 暂时禁用
-    // for (auto& v : exports_) {
-    //     JsException::check(JS_AddModuleExport(engine->context_, module, v.name_.c_str()));
-    // }
-    // for (auto& f : exportsFunctions_) {
-    //     JsException::check(JS_AddModuleExport(engine->context_, module, f.name_.c_str()));
-    // }
+    for (auto& v : variables_) {
+        JsException::check(JS_AddModuleExport(engine->context_, module, v.name_.c_str()));
+    }
+    for (auto& f : functions_) {
+        JsException::check(JS_AddModuleExport(engine->context_, module, f.name_.c_str()));
+    }
 }
 void bind::meta::ModuleDefine::_performExports(JsEngine* engine, JSContext* ctx, JSModuleDef* module) const {
     for (auto& def : refClass_) {
@@ -108,6 +107,21 @@ void bind::meta::ModuleDefine::_performExports(JsEngine* engine, JSContext* ctx,
         }
         auto obj = engine->bindRegistry_->enums_.at(def);
         JsException::check(JS_SetModuleExport(ctx, module, def->name_.c_str(), JS_DupValue(ctx, Value::extract(obj))));
+    }
+
+    if (!engine->bindRegistry_->moduleExports_.contains(module)) {
+        engine->bindRegistry_->_buildModuleExports(*this, module);
+    }
+    auto& exports = engine->bindRegistry_->moduleExports_.at(module);
+    for (auto& var : variables_) {
+        auto& constant = exports.constants_.at(&var);
+        JsException::check(
+            JS_SetModuleExport(ctx, module, var.name_.c_str(), JS_DupValue(ctx, Value::extract(constant)))
+        );
+    }
+    for (auto& func : functions_) {
+        auto& fn = exports.functions_.at(&func);
+        JsException::check(JS_SetModuleExport(ctx, module, func.name_.c_str(), JS_DupValue(ctx, Value::extract(fn))));
     }
 }
 
