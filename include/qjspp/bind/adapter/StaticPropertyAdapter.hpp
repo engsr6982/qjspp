@@ -1,6 +1,6 @@
 #pragma once
 #include "qjspp/Forward.hpp"
-#include "qjspp/bind/TypeConverter.inl"
+#include "qjspp/bind/TypeConverter.hpp"
 #include "qjspp/traits/FunctionTraits.hpp"
 #include "qjspp/traits/TypeTraits.hpp"
 #include "qjspp/types/Value.hpp"
