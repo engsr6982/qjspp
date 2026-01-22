@@ -304,13 +304,5 @@ void* JsEngine::getNativeInstanceOf(Object const& thiz, bind::meta::ClassDefine 
     return (*managed_resource)();
 }
 
-void JsEngine::setUnhandledJsExceptionCallback(UnhandledJsExceptionCallback cb) { unhandledJsExceptionCallback_ = cb; }
-
-void JsEngine::invokeUnhandledJsException(JsException const& exception, ExceptionDispatchOrigin origin) {
-    if (unhandledJsExceptionCallback_) {
-        unhandledJsExceptionCallback_(this, exception, origin);
-    }
-}
-
 
 } // namespace qjspp

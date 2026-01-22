@@ -53,16 +53,6 @@ inline constexpr int toQuickJSFlags(PropertyAttributes attr) {
     return flags;
 }
 
-enum class ExceptionDispatchOrigin {
-    Unknown = 0, // 未知来源
-    Callback,    // C++ 调用 JS 回调
-    Script,      // JS 脚本执行
-    Constructor, // JS 构造函数
-    Method,      // JS 调用绑定方法
-    Getter,      // JS 访问属性 getter
-    Setter,      // JS 修改属性 setter
-    Finalizer    // 托管对象析构 / finalizer
-};
 
 } // namespace qjspp
 

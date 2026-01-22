@@ -23,32 +23,12 @@ inline decltype(auto) bindScriptCallback(Value const& value) {
         Locker lock{engine};
 
         auto cb = sc.value().asFunction();
-        try {
-            std::array<Value, sizeof...(Args)> argv{ConvertToJs(std::forward<Args>(args))...};
-            if constexpr (std::is_void_v<R>) {
-                cb.call({}, argv);
-            } else {
-                return ConvertToCpp<R>(cb.call({}, argv));
-            }
-        } catch (JsException const& e) {
-#ifndef QJSPP_CALLBACK_ALWAYS_THROW_IF_NEED_RETURN_VALUE
-            if constexpr (std::is_void_v<R> || std::is_default_constructible_v<R>) {
-                engine->invokeUnhandledJsException(e, ExceptionDispatchOrigin::Callback);
-                if constexpr (!std::is_void_v<R>) return R{};
-            } else {
-                throw std::runtime_error{
-                    "unhandled js exception in callback, qjspp cannot handle the callback return value!"
-                };
-            }
-#else
-            if constexpr (std::is_void_v<R>) {
-                engine->invokeUnhandledJsException(e, ExceptionDispatchOrigin::Callback);
-            } else {
-                throw std::runtime_error{
-                    "unhandled js exception in callback, qjspp cannot handle the callback return value!"
-                };
-            }
-#endif
+
+        std::array<Value, sizeof...(Args)> argv{ConvertToJs(std::forward<Args>(args))...};
+        if constexpr (std::is_void_v<R>) {
+            cb.call({}, argv);
+        } else {
+            return ConvertToCpp<R>(cb.call({}, argv));
         }
     };
 }

@@ -157,13 +157,6 @@ public:
     template <typename T>
     [[nodiscard]] inline T* getNativeInstanceOf(Object const& obj, bind::meta::ClassDefine const& def) const;
 
-
-    using UnhandledJsExceptionCallback =
-        void (*)(JsEngine* engine, JsException const& exception, ExceptionDispatchOrigin origin);
-
-    void setUnhandledJsExceptionCallback(UnhandledJsExceptionCallback cb);
-    void invokeUnhandledJsException(JsException const& exception, ExceptionDispatchOrigin origin);
-
 private:
     void setObjectToStringTag(Object& obj, std::string_view tag) const;
 
@@ -179,8 +172,6 @@ private:
     mutable std::recursive_mutex mutex_;               // 线程安全互斥量
     JSAtom                       lengthAtom_ = {};     // for Array
     JSAtom                       toStringTagSymbol_{}; // for class、enum...
-
-    UnhandledJsExceptionCallback unhandledJsExceptionCallback_{nullptr};
 
     std::unique_ptr<detail::BindRegistry> bindRegistry_{nullptr};
 

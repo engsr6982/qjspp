@@ -38,12 +38,6 @@
 - 控制实例方法或属性调用时是否检查 `JsManagedResource::define_` 是否与注册时的 `ClassDefine` 匹配。
 - 打开后可跳过检查，关闭时不匹配会抛出 `JsException`。
 
-### `QJSPP_CALLBACK_ALWAYS_THROW_IF_NEED_RETURN_VALUE`
-
-- **默认：关闭**
-- 调用绑定回调时，如果 JS 抛异常且需要返回值，则直接抛 `std::runtime_error`。
-- 默认行为是尝试用返回值类型的默认构造填充，如果不可行则抛 `std::runtime_error`。
-
 ### `QJSPP_INT64_OR_UINT64_ALWAYS_USE_NUMBER_OF_BIGINT_IN_TYPE_CONVERTER`
 
 - **默认：关闭**

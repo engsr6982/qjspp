@@ -43,12 +43,6 @@ Features:
   `ClassDefine`.
 - When enabled, skips validation. When disabled, mismatch throws `JsException`.
 
-### `QJSPP_CALLBACK_ALWAYS_THROW_IF_NEED_RETURN_VALUE`
-
-- **Default: Off**
-- When invoking bound callbacks, if JS throws and a return value is required, a `std::runtime_error` is thrown.
-- By default, it tries to use the default constructor of the return type if possible.
-
 ### `QJSPP_INT64_OR_UINT64_ALWAYS_USE_NUMBER_OF_BIGINT_IN_TYPE_CONVERTER`
 
 - **Default: Off**
