@@ -259,11 +259,7 @@ struct TypeConverter<std::pair<Ty1, Ty2>> {
     }
     static std::pair<Ty1, Ty2> toCpp(Value const& value) {
         if (!value.isArray() || value.asArray().length() != 2) {
-            if constexpr (concepts::HasDefaultConstructor<Ty1> && concepts::HasDefaultConstructor<Ty2>) {
-                return std::make_pair(Ty1{}, Ty2{});
-            } else {
-                throw JsException{"Invalid argument type, expected array with 2 elements"};
-            }
+            throw JsException{"Invalid argument type, expected array with 2 elements"};
         }
         auto array = value.asArray();
         return std::make_pair(ConvertToCpp<Ty1>(array.get(0)), ConvertToCpp<Ty2>(array.get(1)));
