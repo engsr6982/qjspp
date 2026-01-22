@@ -1,6 +1,6 @@
 #pragma once
 #include <concepts>
-#include <string>
+#include <string_view>
 #include <type_traits>
 
 
@@ -11,9 +11,7 @@ template <typename T>
 concept NumberLike = std::is_arithmetic_v<T>;
 
 template <typename T>
-concept StringLike =
-    std::is_same_v<std::remove_cvref_t<T>, std::string> || std::is_same_v<std::remove_cvref_t<T>, std::string_view>
-    || std::is_same_v<std::remove_cvref_t<T>, const char*> || std::is_same_v<std::remove_cvref_t<T>, char*>;
+concept StringLike = std::convertible_to<T, std::string_view>;
 
 template <typename T>
 concept HasDefaultConstructor = requires { T{}; };
